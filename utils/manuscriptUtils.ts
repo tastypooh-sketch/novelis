@@ -2,6 +2,7 @@ import { Packer, Document, Paragraph, TextRun, HeadingLevel, ImageRun, Alignment
 import JSZip from 'jszip';
 import type { IChapter, INovelState, EditorSettings, ICharacter, ISnippet, WritingGoals } from '../types';
 import { generateNoveHTML } from './noveGenerator';
+import { initialNovelState } from '../NovelContext';
 
 // --- ZIP PROTOCOL UTILS ---
 
@@ -85,6 +86,12 @@ export const exportStandaloneNove = async (fullState: INovelState, settings: Edi
     downloadFile(filename, noveHtml, 'text/html');
 };
 
+export const exportBlankNove = async (settings: EditorSettings, writingGoals: WritingGoals) => {
+    const favicon = await getFaviconBase64();
+    const noveHtml = generateNoveHTML(initialNovelState, settings, writingGoals, favicon);
+    downloadFile('Nové.html', noveHtml, 'text/html');
+};
+
 export const exportForNove = async (fullState: INovelState, settings: EditorSettings, writingGoals: WritingGoals) => {
     const zip = new JSZip();
     const favicon = await getFaviconBase64();
@@ -113,7 +120,7 @@ export const exportForNove = async (fullState: INovelState, settings: EditorSett
                 name: filename, 
                 content: new Uint8Array(arrayBuffer) 
             });
-            localStorage.setItem('novelos_sync_flag', 'true');
+            localStorage.setItem('novelis_sync_flag', 'true');
         } catch (e) {
             console.error("Electron save failed:", e);
             alert("Failed to save via Electron dialog.");
@@ -125,7 +132,7 @@ export const exportForNove = async (fullState: INovelState, settings: EditorSett
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        localStorage.setItem('novelos_sync_flag', 'true');
+        localStorage.setItem('novelis_sync_flag', 'true');
     }
 };
 

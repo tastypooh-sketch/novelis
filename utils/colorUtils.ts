@@ -1,5 +1,5 @@
 
-import type { EditorSettings } from './types';
+import type { EditorSettings } from '../types';
 
 export const hexToRgb = (hex: string): [number, number, number] | null => {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);

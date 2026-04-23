@@ -13,6 +13,7 @@ interface CustomizeToolbarModalProps {
     onSaveProject: () => Promise<boolean>;
     hasContent: boolean;
     appUpdate?: AppUpdate | null;
+    onExportBlankNove: () => void;
 }
 
 const ALL_TOOLBAR_ITEMS: { key: keyof ToolbarVisibility; label: string }[] = [
@@ -33,7 +34,7 @@ const ALL_TOOLBAR_ITEMS: { key: keyof ToolbarVisibility; label: string }[] = [
     { key: 'userGuide', label: 'User Guide' },
 ];
 
-export const CustomizeToolbarModal: React.FC<CustomizeToolbarModalProps> = ({ settings, currentVisibility, onSave, onClose, onSaveProject, hasContent, appUpdate: initialUpdate }) => {
+export const CustomizeToolbarModal: React.FC<CustomizeToolbarModalProps> = ({ settings, currentVisibility, onSave, onClose, onSaveProject, hasContent, appUpdate: initialUpdate, onExportBlankNove }) => {
     const [visibility, setVisibility] = useState(currentVisibility);
     const [isSaving, setIsSaving] = useState(false);
     const [saveStatus, setSaveStatus] = useState<string | null>(null);
@@ -55,7 +56,7 @@ export const CustomizeToolbarModal: React.FC<CustomizeToolbarModalProps> = ({ se
                 const result = await window.electronAPI.checkForUpdates();
                 setActiveUpdate(result && result.isNewer ? result : null);
                 if (result && !result.isNewer) {
-                    alert("You are on the latest version of Novelos!");
+                    alert("You are on the latest version of Novelis!");
                 }
             } catch (e) {
                 console.error(e);
@@ -99,7 +100,7 @@ export const CustomizeToolbarModal: React.FC<CustomizeToolbarModalProps> = ({ se
     const handleFactoryReset = () => {
         if (window.confirm("Factory Reset: This will reset all visual settings, toolbar preferences, and the design gallery to their defaults. Your written content (chapters/characters) will NOT be deleted.\n\nThis is useful for applying updates to default assets.\n\nAre you sure?")) {
             localStorage.removeItem('architextSettingsV1');
-            localStorage.removeItem('novelosDesignGalleryV1');
+            localStorage.removeItem('novelisDesignGalleryV1');
             window.location.reload();
         }
     };
@@ -201,6 +202,18 @@ export const CustomizeToolbarModal: React.FC<CustomizeToolbarModalProps> = ({ se
                 {/* Maintenance Section */}
                 <div className="pt-6 border-t" style={{ borderColor: settings.toolbarInputBorderColor }}>
                     <div className="flex flex-col gap-6">
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <h3 className="font-bold text-sm">Export Nové</h3>
+                                <p className="text-xs opacity-50 max-w-xs">Export a blank copy of Nové.</p>
+                            </div>
+                            <button 
+                                onClick={onExportBlankNove}
+                                className="px-4 py-2 rounded-md text-xs font-bold bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+                            >
+                                Export Blank Nové
+                            </button>
+                        </div>
                         <div className="flex justify-between items-center">
                             <div>
                                 <h3 className="font-bold text-sm text-red-400">Factory Reset</h3>

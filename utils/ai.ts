@@ -17,7 +17,7 @@ export const getAI = (): GoogleGenAI => {
     const envKey = process.env.API_KEY; 
 
     if (!envKey || envKey === 'undefined' || envKey === '') {
-        console.warn("Novelos: No API Key found in environment. AI features will be disabled.");
+        console.warn("Novelis: No API Key found in environment. AI features will be disabled.");
         // Return instance with dummy key to prevent crash on initialization, 
         // but actual AI calls will fail gracefully with a 400 error.
         return new GoogleGenAI({ apiKey: "MISSING_KEY" }); 

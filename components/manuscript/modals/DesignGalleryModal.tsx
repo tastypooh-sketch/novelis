@@ -24,7 +24,7 @@ const PALETTES: Palette[] = [
     { name: 'Gothic', backgroundColor: '#1a1414', textColor: '#e0c5a3', toolbarBg: '#241a1a', toolbarText: '#e0c5a3', toolbarButtonBg: '#3d3030', toolbarButtonHoverBg: '#4d4040', toolbarInputBorderColor: '#4d4040', accentColor: '#a855f7', accentColorHover: '#9333ea', successColor: '#4ade80', successColorHover: '#22c55e', dangerColor: '#ef4444', dangerColorHover: '#dc2626', dropdownBg: '#3d3030' },
 ];
 
-const NOVELOS_COLLECTION = [
+const NOVELIS_COLLECTION = [
     { url: 'https://static.vecteezy.com/system/resources/previews/036/215/115/non_2x/ai-generated-abstract-black-leaf-on-dark-background-elegant-design-generated-by-ai-free-photo.jpg' },
     { url: 'https://static.vecteezy.com/system/resources/previews/036/185/896/non_2x/ai-generated-green-soft-background-free-photo.jpg' },
     { url: 'https://static.vecteezy.com/system/resources/previews/035/598/194/non_2x/ai-generated-love-filled-background-with-gentle-lighting-hearts-and-space-for-heartfelt-messages-free-photo.jpg' },
@@ -274,11 +274,11 @@ export const DesignGalleryModal: React.FC<DesignGalleryModalProps> = ({ settings
                     onDragOver={handleContainerDragOver}
                     className="space-y-6 max-h-96 overflow-y-auto pr-2"
                 >
-                    {/* Hardcoded Novelos Collection */}
+                    {/* Hardcoded Novelis Collection */}
                     <div>
-                        <h3 className="font-semibold mb-2">Novelos Collection</h3>
+                        <h3 className="font-semibold mb-2">Novelis Collection</h3>
                         <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-3 p-3 rounded-md min-h-[140px]" style={{ backgroundColor: settings.backgroundColor }}>
-                            {NOVELOS_COLLECTION.map((item, i) => (
+                            {NOVELIS_COLLECTION.map((item, i) => (
                                 <div 
                                     key={i} 
                                     onClick={() => handleApplyItem(item.url)}

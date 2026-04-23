@@ -36,7 +36,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   // Handle errors caught during the render phase
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("Uncaught rendering error in Novelos:", error, errorInfo);
+    console.error("Uncaught rendering error in Novelis:", error, errorInfo);
     // Fix: Access setState inherited from the Component base class
     this.setState({ errorInfo });
   }
@@ -56,7 +56,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
         const a = document.createElement('a');
         a.href = url;
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        a.download = `novelos_emergency_recovery_${timestamp}.json`;
+        a.download = `novelis_emergency_recovery_${timestamp}.json`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);

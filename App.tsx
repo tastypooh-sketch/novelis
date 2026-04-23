@@ -245,7 +245,7 @@ const SplashScreen: React.FC<{ visible: boolean; settings: EditorSettings }> = (
                         color: settings.textColor,
                     }}
                 >
-                    Novel<span style={{ color: settings.accentColor }}>o</span>s<span className="text-2xl align-top ml-1 opacity-50 font-sans font-normal tracking-normal">TM</span>
+                    Novel<span style={{ color: settings.accentColor }}>i</span>s<span className="text-2xl align-top ml-1 opacity-50 font-sans font-normal tracking-normal">TM</span>
                 </a>
              </div>
         </div>
@@ -261,7 +261,7 @@ const App: React.FC = () => {
     const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
     
     // EULA Acceptance State
-    const [hasAcceptedEULA, setHasAcceptedEULA] = useState(() => localStorage.getItem('novelos_eula_accepted') === 'true');
+    const [hasAcceptedEULA, setHasAcceptedEULA] = useState(() => localStorage.getItem('novelis_eula_accepted') === 'true');
 
     // Access full state for save
     const novelState = useNovelState(); 
@@ -387,8 +387,8 @@ const App: React.FC = () => {
         const initializeApp = async () => {
             // @ts-ignore
             if (window.electronAPI) {
-                const lastPath = localStorage.getItem('novelos_last_project_path');
-                const lastActionWasNove = localStorage.getItem('novelos_sync_flag') === 'true';
+                const lastPath = localStorage.getItem('novelis_last_project_path');
+                const lastActionWasNove = localStorage.getItem('novelis_sync_flag') === 'true';
 
                 if (lastActionWasNove && lastPath) {
                     // SYNC REQUIRED MODE
@@ -457,7 +457,7 @@ const App: React.FC = () => {
                                             dispatch({ type: 'LOAD_PROJECT', payload: parsed.state });
                                             if (parsed.settings) setSettings(prev => ({...prev, ...parsed.settings}));
                                             setProjectPath(lastPath);
-                                            localStorage.removeItem('novelos_sync_flag');
+                                            localStorage.removeItem('novelis_sync_flag');
                                             return;
                                         }
                                     }
@@ -470,7 +470,7 @@ const App: React.FC = () => {
                         }
                     } else {
                         // User declined sync, clear flag
-                        localStorage.removeItem('novelos_sync_flag');
+                        localStorage.removeItem('novelis_sync_flag');
                     }
                 }
 
@@ -518,7 +518,7 @@ const App: React.FC = () => {
                     const parts = targetPath.split(/[\\/]/);
                     const folderName = parts[parts.length - 1];
                     setProjectName(folderName);
-                    localStorage.setItem('novelos_last_project_path', targetPath);
+                    localStorage.setItem('novelis_last_project_path', targetPath);
                 } else {
                     return false; // Cancelled
                 }
@@ -595,7 +595,7 @@ const App: React.FC = () => {
     
     useEffect(() => {
         const savedSettings = localStorage.getItem('architextSettingsV1');
-        const savedGallery = localStorage.getItem('novelosDesignGalleryV1');
+        const savedGallery = localStorage.getItem('novelisDesignGalleryV1');
 
         let parsedSettings = {}
         if (savedSettings) {
@@ -627,7 +627,7 @@ const App: React.FC = () => {
     }, [settings]);
 
     useEffect(() => {
-        localStorage.setItem('novelosDesignGalleryV1', JSON.stringify(galleryItems));
+        localStorage.setItem('novelisDesignGalleryV1', JSON.stringify(galleryItems));
     }, [galleryItems]);
 
     
@@ -704,7 +704,7 @@ Return your response as a JSON array of strings, where each string is a single p
 
     const handleAcceptEULA = () => {
         setHasAcceptedEULA(true);
-        localStorage.setItem('novelos_eula_accepted', 'true');
+        localStorage.setItem('novelis_eula_accepted', 'true');
     };
 
     const navClasses = `

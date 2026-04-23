@@ -19,7 +19,7 @@ const ExcerptItem: React.FC<{
     onSelect: () => void,
     settings: EditorSettings 
 }> = ({ excerpt, chapter, characters, isSelected, onSelect, settings }) => {
-    const novelTitle = 'Novelos';
+    const novelTitle = 'Novelis';
     
     return (
         <div 
@@ -235,7 +235,7 @@ export const SocialMediaPanel: React.FC<{ settings: EditorSettings }> = ({ setti
 
         const a = document.createElement('a');
         a.href = generatedImageUrl;
-        const fileName = `novelos_image_ch${chapter?.chapterNumber || 'X'}_${excerpt?.text.substring(0, 15).replace(/\s/g, '_') || 'export'}.png`;
+        const fileName = `novelis_image_ch${chapter?.chapterNumber || 'X'}_${excerpt?.text.substring(0, 15).replace(/\s/g, '_') || 'export'}.png`;
         a.download = fileName;
         document.body.appendChild(a);
         a.click();

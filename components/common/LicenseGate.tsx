@@ -85,7 +85,7 @@ export const LicenseGate: React.FC<LicenseGateProps> = ({ children, settings }) 
             
             <div className="relative z-10 w-full max-w-md p-8 rounded-xl shadow-2xl border" style={{ backgroundColor: settings.toolbarBg, borderColor: settings.toolbarInputBorderColor }}>
                 <div className="text-center mb-8">
-                    <h1 className="text-4xl font-bold font-serif mb-2">Novel<span style={{ color: settings.accentColor }}>o</span>s</h1>
+                    <h1 className="text-4xl font-bold font-serif mb-2">Novel<span style={{ color: settings.accentColor }}>i</span>s</h1>
                     <p className="opacity-70 text-sm">Product Activation</p>
                 </div>
 
@@ -125,7 +125,7 @@ export const LicenseGate: React.FC<LicenseGateProps> = ({ children, settings }) 
                 <div className="mt-6 text-center text-xs opacity-60">
                     <p className="mb-2 font-medium">Important: AI features require your own Google API Key.</p>
                     <p className="text-[10px] opacity-75">(Google's Free Tier is generous. Most authors pay $0.00.)</p>
-                    <p className="mt-4">Don't have a license? <a href="#" className="underline hover:opacity-100">Purchase Novelos</a></p>
+                    <p className="mt-4">Don't have a license? <a href="#" className="underline hover:opacity-100">Purchase Novelis</a></p>
                 </div>
             </div>
         </div>

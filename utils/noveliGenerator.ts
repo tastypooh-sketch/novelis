@@ -455,7 +455,7 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
                              <p><strong>1. DISCLAIMER:</strong> This software is provided "AS IS". The developer assumes no responsibility for data loss, system crashes, or lost income.</p>
                              <p><strong>2. PRIVACY:</strong> Nove works offline. Your manuscript stays on your device. No data is harvested or transmitted.</p>
                              <p><strong>3. BACKUPS:</strong> You are solely responsible for maintaining external backups. Nove saves "snapshots" into ZIP files when you click save.</p>
-                             <p><strong>4. STANDALONE USE:</strong> Nove is a derivative of Novelos. It is free for portable use, but does not include AI tools, which require a Novelos Desktop license.</p>
+                             <p><strong>4. STANDALONE USE:</strong> Nove is a derivative of Novelis. It is free for portable use, but does not include AI tools, which require a Novelis Desktop license.</p>
                              
                              <label className="flex items-center gap-3 pt-4 cursor-pointer select-none">
                                 <input type="checkbox" checked={accepted} onChange={e => setAccepted(e.target.checked)} className="w-4 h-4 rounded" style={{accentColor: settings.accentColor}} />
@@ -489,15 +489,15 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
                 {
                     level: 1, title: "SAVING & SYNCING", children: [
                         { level: 2, title: "How Saving Works", content: ["Browsers cannot directly overwrite files on your computer. When you click 'Save', Nove packages your manuscript and settings into a timestamped ZIP file. Save this ZIP to your hard drive, cloud folder, or USB stick."] },
-                        { level: 2, title: "Back to Novelos", content: ["To resume work in the full Novelos Desktop application, use the 'Import from Nove' button and select your latest ZIP file. Everything—including your design choices—will be synchronized."] }
+                        { level: 2, title: "Back to Novelis", content: ["To resume work in the full Novelis Desktop application, use the 'Import from Nove' button and select your latest ZIP file. Everything—including your design choices—will be synchronized."] }
                     ]
                 },
                 {
                     level: 1, title: "FREQUENTLY ASKED QUESTIONS", children: [
                         { level: 2, title: "Is my data private?", content: ["Absolutely. Nove runs entirely on your local machine. No data is sent to our servers. Your words live inside the HTML file and the ZIP snapshots you create."] },
                         { level: 2, title: "Can I use it offline?", content: ["Yes. Once you have the Nove.html file, you do not need an internet connection to write or save snapshots."] },
-                        { level: 2, title: "Why a ZIP file instead of a Word doc?", content: ["The ZIP protocol is our 'Save' method. It allows us to bundle the structural data needed for syncing back to Novelos alongside human-readable RTF backups of every chapter."] },
-                        { level: 2, title: "Where are my characters and world notes?", content: ["The portable Nove editor focuses on pure writing. While Nove is the perfect tool for distraction-free drafting on any device, the heavy lifting of structural analysis and world management happens in the full Novelos suite.", "Think of Nove as your agile satellite and Novelos as your powerful mothership. When you return to your desktop, Novelos unlocks a universe of features: the AI-powered Pacing Heatmap, full character relationship graphs, the World-Building Crucible, and the Social Media Studio to automate your marketing. By separating drafting from structural engineering, you maintain creative flow while ensuring your story bible is always just a sync away."] }
+                        { level: 2, title: "Why a ZIP file instead of a Word doc?", content: ["The ZIP protocol is our 'Save' method. It allows us to bundle the structural data needed for syncing back to Novelis alongside human-readable RTF backups of every chapter."] },
+                        { level: 2, title: "Where are my characters and world notes?", content: ["The portable Nove editor focuses on pure writing. While Nove is the perfect tool for distraction-free drafting on any device, the heavy lifting of structural analysis and world management happens in the full Novelis suite.", "Think of Nove as your agile satellite and Novelis as your powerful mothership. When you return to your desktop, Novelis unlocks a universe of features: the AI-powered Pacing Heatmap, full character relationship graphs, the World-Building Crucible, and the Social Media Studio to automate your marketing. By separating drafting from structural engineering, you maintain creative flow while ensuring your story bible is always just a sync away."] }
                     ]
                 }
             ];
@@ -527,7 +527,7 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
                             ))}
                             
                             <div className="pt-10 mt-10 border-t text-center opacity-40 text-xs" style={{borderColor: settings.toolbarInputBorderColor}}>
-                                <p>Nove v7.0 Portable &mdash; Part of the Novelos Ecosystem</p>
+                                <p>Nove v7.0 Portable &mdash; Part of the Novelis Ecosystem</p>
                             </div>
                         </div>
                     </div>
@@ -1021,7 +1021,7 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
                                 </div>
                             </div>
                             <div>
-                                <h4 className="font-semibold mb-3 opacity-80">Novelos Collection</h4>
+                                <h4 className="font-semibold mb-3 opacity-80">Novelis Collection</h4>
                                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
                                     {DEFAULT_BGS.map((bg, i) => ( <div key={i} onClick={() => onSettingsChange({ backgroundImage: bg.url })} className="aspect-square rounded overflow-hidden cursor-pointer hover:opacity-80 border-2 border-transparent hover:border-white transition-all"><img src={bg.url} className="w-full h-full object-cover" loading="lazy" /></div> ))}
                                 </div>
@@ -1253,7 +1253,7 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
                                 <div className="p-4 border-b font-bold text-sm uppercase tracking-wider flex items-center justify-between" style={{borderColor: settings.toolbarButtonBg}}><span>Notes</span><button onClick={() => setNotesOpen(false)}><Icons.Close /></button></div>
                                 <div className="p-4 flex-grow overflow-y-auto space-y-4">
                                     <div className="flex-grow flex flex-col h-full"><textarea className="w-full border-none text-sm resize-none flex-grow focus:ring-0 bg-transparent" style={{color: settings.textColor}} placeholder="Jot down ideas..." defaultValue={activeChapter.rawNotes || ""} onChange={(e) => { const newNotes = e.target.value; setChapters(chapters.map(c => c.id === activeChapter.id ? { ...c, rawNotes: newNotes } : c)); }} /></div>
-                                    <div className="mt-auto pt-4 border-t" style={{borderColor: settings.toolbarButtonBg}}><div className="p-3 rounded-lg text-center" style={{backgroundColor: settings.backgroundColor + '80'}}><p className="text-xs opacity-70 mb-2">Need AI tools?</p><button className="w-full py-1.5 rounded text-xs font-bold text-white shadow-sm hover:opacity-90 transition-opacity cursor-not-allowed opacity-50" disabled style={{backgroundColor: settings.accentColor}}>Available in Novelos Desktop</button></div></div>
+                                    <div className="mt-auto pt-4 border-t" style={{borderColor: settings.toolbarButtonBg}}><div className="p-3 rounded-lg text-center" style={{backgroundColor: settings.backgroundColor + '80'}}><p className="text-xs opacity-70 mb-2">Need AI tools?</p><button className="w-full py-1.5 rounded text-xs font-bold text-white shadow-sm hover:opacity-90 transition-opacity cursor-not-allowed opacity-50" disabled style={{backgroundColor: settings.accentColor}}>Available in Novelis Desktop</button></div></div>
                                 </div>
                             </div>
                         )}
@@ -1298,7 +1298,7 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
                             <button onClick={() => setIsFocusMode(!isFocusMode)} className="p-2 rounded hover:opacity-80 transition-colors" style={isFocusMode ? activeBtnStyle : btnStyle} title="Focus Mode (Esc)"><Icons.Focus /></button>
                             <button onClick={handleDonate} className="p-2 rounded hover:opacity-80 transition-colors" style={{...btnStyle, color: '#ef4444'}} title="Donate"><Icons.Heart /></button>
                             <button onClick={() => setIsUserGuideOpen(true)} className="p-2 rounded hover:opacity-80 transition-colors" style={btnStyle} title="User Guide"><Icons.Help /></button>
-                            <button onClick={handleUpgrade} className="px-3 py-1.5 rounded text-sm transition-colors hover:opacity-90" style={{backgroundColor: settings.accentColor, color: '#FFF'}} title="Upgrade to Novelos Desktop">Upgrade</button>
+                            <button onClick={handleUpgrade} className="px-3 py-1.5 rounded text-sm transition-colors hover:opacity-90" style={{backgroundColor: settings.accentColor, color: '#FFF'}} title="Upgrade to Novelis Desktop">Upgrade</button>
                             <button onClick={() => handlePortableSave(false)} className="flex items-center gap-2 px-4 py-1.5 rounded text-sm font-medium transition-colors hover:opacity-90" style={{backgroundColor: settings.accentColor, color: '#FFF'}} title="Save Project Snapshot (Ctrl+S)"><Icons.Save /> Save</button>
                         </div>
                     </div>

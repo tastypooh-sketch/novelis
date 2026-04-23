@@ -35,7 +35,7 @@ export const EULAModal: React.FC<EULAModalProps> = ({ settings, onAccept }) => {
                 >
                     <section>
                         <h3 className="font-bold text-base mb-2">1. ACCEPTANCE BY INSTALLATION</h3>
-                        <p>By installing, accessing, or using Novelos (the "Software"), you agree to be bound by the terms of this Agreement. If you do not agree, do not install or use the Software.</p>
+                        <p>By installing, accessing, or using Novelis (the "Software"), you agree to be bound by the terms of this Agreement. If you do not agree, do not install or use the Software.</p>
                     </section>
 
                     <section className="p-4 border-l-4 border-red-500 bg-red-500/10">
@@ -58,7 +58,7 @@ export const EULAModal: React.FC<EULAModalProps> = ({ settings, onAccept }) => {
 
                     <section>
                         <h3 className="font-bold text-base mb-2">4. AI-GENERATED CONTENT</h3>
-                        <p>Novelos provides features powered by third-party Artificial Intelligence. The Developer makes no guarantees regarding the accuracy, tone, or safety of AI outputs. All AI-generated suggestions are to be used at the User's own risk and discretion.</p>
+                        <p>Novelis provides features powered by third-party Artificial Intelligence. The Developer makes no guarantees regarding the accuracy, tone, or safety of AI outputs. All AI-generated suggestions are to be used at the User's own risk and discretion.</p>
                     </section>
 
                     <section>

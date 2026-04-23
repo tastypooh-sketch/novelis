@@ -90,6 +90,8 @@ interface ToolbarProps {
   ttsStatus: TTSStatus;
   onExportNove: () => void;
   onExportStandaloneNove: () => void;
+  onExportBlankNove: () => void;
+  onImportNove: () => void;
   updateAvailable?: boolean;
 }
 
@@ -104,6 +106,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     hasDirectory, onToggleReadAloud, ttsStatus,
     onExportNove,
     onExportStandaloneNove,
+    onExportBlankNove,
+    onImportNove,
     updateAvailable = false
 }) => {
   const fontOptions = ["Lora", "Merriweather", "Times New Roman", "Bookman Old Style", "Georgia", "Roboto", "Open Sans", "Arial", "Inter", "Inconsolata"];
@@ -316,6 +320,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                     
                     <div className="px-4 py-2 text-[10px] uppercase font-bold tracking-widest opacity-50" style={{ color: settings.toolbarText }}>Deployment & Distribution</div>
                     <button {...menuItemHoverProps} onClick={() => { onExportNove(); setIsSaveMenuOpen(false); }} className="block w-full text-left px-4 py-2 text-sm cursor-pointer" style={{color: settings.toolbarText, backgroundColor: 'transparent'}}>Export Portable Nové (.zip)</button>
+                    <button {...menuItemHoverProps} onClick={() => { onExportBlankNove(); setIsSaveMenuOpen(false); }} className="block w-full text-left px-4 py-2 text-sm cursor-pointer" style={{color: settings.toolbarText, backgroundColor: 'transparent'}}>Export Blank Nové (.html)</button>
+                    <button {...menuItemHoverProps} onClick={() => { onImportNove(); setIsSaveMenuOpen(false); }} className="block w-full text-left px-4 py-2 text-sm cursor-pointer" style={{color: settings.toolbarText, backgroundColor: 'transparent'}}>Import from Nové (.zip)</button>
                 </div>
             )}
         </div>

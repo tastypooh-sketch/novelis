@@ -4,9 +4,9 @@ import { Type } from "@google/genai";
 import { Modal } from '../../manuscript/modals/Modal';
 import type { EditorSettings, IChapter, ICharacter, IWorldItem } from '../../../types';
 import { generateId, extractJson } from '../../../utils/common';
-import { SpinnerIcon, SparklesIconOutline, TrashIconOutline, CheckCircleIcon } from '../../common/Icons';
+import { SpinnerIcon, SparklesIconOutline, TrashIconOutline, CheckCircleIcon, ImportIcon } from '../../common/Icons';
 import { useNovelDispatch, useNovelState } from '../../../NovelContext';
-import { generateInitialChapterRtf, smartQuotes } from '../../../utils/manuscriptUtils';
+import { generateInitialChapterRtf, smartQuotes, parseNoveSync } from '../../../utils/manuscriptUtils';
 import { getAI, hasAPIKey, API_KEY_ERROR } from '../../../utils/ai';
 import { AIError } from '../../common/AIError';
 
@@ -25,6 +25,7 @@ interface DetectedChapter {
 export const ImportNovelModal: React.FC<ImportNovelModalProps> = ({ settings, onClose, directoryHandle }) => {
     const dispatch = useNovelDispatch();
     const [step, setStep] = useState<1 | 2 | 3>(1);
+    const [importType, setImportType] = useState<'text' | 'zip' | null>(null);
     const [text, setText] = useState('');
     const [splitRegex, setSplitRegex] = useState<string>(`(?:^|\\n)(?:CHAPTER|Chapter|PROLOGUE|Prologue|EPILOGUE|Epilogue)\\s*(?:\\d+|[A-Z]+)?(?:[^\\n]*)(?=\\n|$)`);
     const [detectedChapters, setDetectedChapters] = useState<DetectedChapter[]>([]);
@@ -32,6 +33,7 @@ export const ImportNovelModal: React.FC<ImportNovelModalProps> = ({ settings, on
     const [progress, setProgress] = useState<string>('');
     const [error, setError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const zipInputRef = useRef<HTMLInputElement>(null);
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -43,9 +45,36 @@ export const ImportNovelModal: React.FC<ImportNovelModalProps> = ({ settings, on
                     // Convert straight quotes to smart quotes immediately upon import
                     const formattedContent = smartQuotes(content);
                     setText(formattedContent);
+                    setImportType('text');
                 }
             };
             reader.readAsText(file);
+        }
+    };
+
+    const handleZipUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setIsProcessing(true);
+            setError(null);
+            setProgress('Parsing project data...');
+            try {
+                const parsed = await parseNoveSync(file);
+                if (parsed && parsed.state) {
+                    dispatch({ type: 'LOAD_PROJECT', payload: parsed.state });
+                    // If settings are present in the zip, we could apply them too, 
+                    // but the modal doesn't have access to setSettings. 
+                    // For now, loading the project state is the priority.
+                    setStep(3);
+                } else {
+                    setError("Could not find valid project data in this ZIP file.");
+                }
+            } catch (err) {
+                console.error(err);
+                setError("Failed to parse ZIP file. Ensure it is a valid Nové export.");
+            } finally {
+                setIsProcessing(false);
+            }
         }
     };
 
@@ -274,56 +303,95 @@ export const ImportNovelModal: React.FC<ImportNovelModalProps> = ({ settings, on
                 </div>
 
                 {step === 1 && (
-                    <div className="space-y-4">
-                        <p className="text-sm opacity-80">Paste your entire manuscript below, or upload a text file. We'll try to split it into chapters automatically.</p>
-                        
-                        <div className="flex gap-4 items-center">
+                    <div className="space-y-6">
+                        {/* Import Options */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <button 
-                                onClick={() => fileInputRef.current?.click()}
-                                className="px-4 py-2 rounded-md bg-gray-700 hover:bg-gray-600 text-white text-sm"
+                                onClick={() => zipInputRef.current?.click()}
+                                className="flex flex-col items-center justify-center p-6 rounded-xl border-2 border-dashed transition-all hover:bg-white/5 group"
+                                style={{ borderColor: settings.toolbarInputBorderColor }}
                             >
-                                Upload .txt File
+                                <div className="p-3 rounded-full bg-blue-500/20 text-blue-400 mb-3 group-hover:scale-110 transition-transform">
+                                    <ImportIcon className="h-8 w-8" />
+                                </div>
+                                <h4 className="font-bold">Import from Nové (.zip)</h4>
+                                <p className="text-xs opacity-60 text-center mt-1">Load a full project backup including characters and world notes.</p>
+                                <input 
+                                    type="file" 
+                                    ref={zipInputRef} 
+                                    onChange={handleZipUpload} 
+                                    accept=".zip" 
+                                    className="hidden" 
+                                />
                             </button>
-                            <input 
-                                type="file" 
-                                ref={fileInputRef} 
-                                onChange={handleFileUpload} 
-                                accept=".txt,.md" 
-                                className="hidden" 
-                            />
-                            <span className="text-xs opacity-50">or paste below</span>
-                        </div>
 
-                        <textarea
-                            value={text}
-                            onChange={e => setText(e.target.value)}
-                            placeholder="Paste manuscript text here..."
-                            className="w-full h-64 p-3 rounded-md border bg-transparent text-sm font-mono"
-                            style={{ borderColor: settings.toolbarInputBorderColor, color: settings.textColor }}
-                        />
-
-                        <div>
-                            <label className="block text-sm font-semibold mb-1 opacity-80">Chapter Detection Pattern (Regex)</label>
-                            <input 
-                                type="text" 
-                                value={splitRegex}
-                                onChange={e => setSplitRegex(e.target.value)}
-                                className="w-full p-2 rounded border bg-transparent text-sm font-mono"
-                                style={{ borderColor: settings.toolbarInputBorderColor, color: settings.textColor }}
-                            />
-                            <p className="text-xs opacity-60 mt-1">Default detects "Chapter X", "Prologue", etc. on a new line.</p>
-                        </div>
-
-                        <div className="flex justify-end">
-                            <button
-                                onClick={handleDetectChapters}
-                                disabled={!text.trim()}
-                                className="px-6 py-2 rounded-md text-white font-medium disabled:opacity-50"
-                                style={{ backgroundColor: settings.accentColor }}
+                            <button 
+                                onClick={() => { setImportType('text'); fileInputRef.current?.click(); }}
+                                className="flex flex-col items-center justify-center p-6 rounded-xl border-2 border-dashed transition-all hover:bg-white/5 group"
+                                style={{ borderColor: settings.toolbarInputBorderColor }}
                             >
-                                Detect Chapters
+                                <div className="p-3 rounded-full bg-purple-500/20 text-purple-400 mb-3 group-hover:scale-110 transition-transform">
+                                    <SparklesIconOutline className="h-8 w-8" />
+                                </div>
+                                <h4 className="font-bold">Import Manuscript (.txt)</h4>
+                                <p className="text-xs opacity-60 text-center mt-1">Import a raw text file and use AI to reconstruct your project.</p>
+                                <input 
+                                    type="file" 
+                                    ref={fileInputRef} 
+                                    onChange={handleFileUpload} 
+                                    accept=".txt,.md" 
+                                    className="hidden" 
+                                />
                             </button>
                         </div>
+
+                        {isProcessing && importType === 'zip' && (
+                            <div className="text-center py-4">
+                                <SpinnerIcon className="h-8 w-8 mx-auto mb-2" />
+                                <p className="font-semibold">{progress}</p>
+                            </div>
+                        )}
+
+                        {(importType === 'text' || text.trim()) && (
+                            <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                <div className="flex justify-between items-center">
+                                    <h4 className="text-sm font-bold uppercase tracking-wider opacity-50">Manuscript Content</h4>
+                                    <button onClick={() => { setText(''); setImportType(null); }} className="text-xs text-red-400 hover:underline">Clear</button>
+                                </div>
+                                
+                                <textarea
+                                    value={text}
+                                    onChange={e => { setText(e.target.value); setImportType('text'); }}
+                                    placeholder="Paste manuscript text here..."
+                                    className="w-full h-64 p-3 rounded-md border bg-transparent text-sm font-mono"
+                                    style={{ borderColor: settings.toolbarInputBorderColor, color: settings.textColor }}
+                                />
+
+                                <div>
+                                    <label className="block text-sm font-semibold mb-1 opacity-80">Chapter Detection Pattern (Regex)</label>
+                                    <input 
+                                        type="text" 
+                                        value={splitRegex}
+                                        onChange={e => setSplitRegex(e.target.value)}
+                                        className="w-full p-2 rounded border bg-transparent text-sm font-mono"
+                                        style={{ borderColor: settings.toolbarInputBorderColor, color: settings.textColor }}
+                                    />
+                                    <p className="text-xs opacity-60 mt-1">Default detects "Chapter X", "Prologue", etc. on a new line.</p>
+                                </div>
+
+                                <div className="flex justify-end">
+                                    <button
+                                        onClick={handleDetectChapters}
+                                        disabled={!text.trim()}
+                                        className="px-6 py-2 rounded-md text-white font-medium disabled:opacity-50"
+                                        style={{ backgroundColor: settings.accentColor }}
+                                    >
+                                        Detect Chapters
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                        {error && <AIError message={error} className="text-center text-sm mt-4" />}
                     </div>
                 )}
 

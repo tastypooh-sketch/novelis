@@ -29,10 +29,16 @@ const DEFAULT_BACKGROUNDS = [
 const safeEncode = (data: any) => {
     try {
         const json = JSON.stringify(data);
-        return btoa(encodeURIComponent(json).replace(/%([0-9A-F]{2})/g,
-            function toSolidBytes(match, p1) {
-                return String.fromCharCode(parseInt(p1, 16));
-            }));
+        // Use Buffer if available (Node.js environment), otherwise btoa (Browser environment)
+        if (typeof btoa === 'function') {
+            return btoa(encodeURIComponent(json).replace(/%([0-9A-F]{2})/g,
+                function toSolidBytes(match, p1) {
+                    return String.fromCharCode(parseInt(p1, 16));
+                }));
+        } else if (typeof Buffer !== 'undefined') {
+            return Buffer.from(json).toString('base64');
+        }
+        return "";
     } catch (e) {
         console.error("Failed to encode data for Nove export", e);
         return "";
@@ -81,7 +87,7 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Nové: Portable Manuscript</title>
-    \${faviconHtml}
+    ${faviconHtml}
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
@@ -190,10 +196,10 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
             }
         };
 
-        const initialState = safeDecode('\${encodedState}');
-        const initialSettings = safeDecode('\${encodedSettings}');
-        const initialGoals = safeDecode('\${encodedGoals}');
-        const DEFAULT_BGS = safeDecode('\${encodedBackgrounds}');
+        const initialState = safeDecode('${encodedState}');
+        const initialSettings = safeDecode('${encodedSettings}');
+        const initialGoals = safeDecode('${encodedGoals}');
+        const DEFAULT_BGS = safeDecode('${encodedBackgrounds}');
         
         const hexToRgb = (hex) => {
             const result = /^#?([a-f\\d]{2})([a-f\\d]{2})([a-f\\d]{2})$/i.exec(hex);
@@ -346,6 +352,8 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
             ExitFullscreen: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M8 4H4v4M16 4h4v4M8 20H4v-4M16 20h4v-4" /></svg>,
             Help: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>,
             Plus: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>,
+            Import: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>,
+            FilePlus: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>,
             LineHeight: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /><path strokeLinecap="round" strokeLinejoin="round" d="M21 6.75v10.5m0 0l-2.25-2.25M21 17.25l2.25-2.25" /></svg>,
             Trash: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="h-4 w-4"><path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>,
         };
@@ -495,7 +503,7 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
                              <p><strong>1. DISCLAIMER:</strong> This software is provided "AS IS". The developer assumes no responsibility for data loss, system crashes, or lost income.</p>
                              <p><strong>2. PRIVACY:</strong> Nové works offline. Your manuscript stays on your device. No data is harvested or transmitted.</p>
                              <p><strong>3. BACKUPS:</strong> You are solely responsible for maintaining external backups. Nové saves "snapshots" into ZIP files when you click save.</p>
-                             <p><strong>4. STANDALONE USE:</strong> Nové is a derivative of Novelos. It is free for portable use, but does not include AI tools, which require a Novelos Desktop license.</p>
+                             <p><strong>4. STANDALONE USE:</strong> Nové is a derivative of Novelis. It is free for portable use, but does not include AI tools, which require a Novelis Desktop license.</p>
                              
                              <label className="flex items-center gap-3 pt-4 cursor-pointer select-none">
                                 <input type="checkbox" checked={accepted} onChange={e => setAccepted(e.target.checked)} className="w-4 h-4 rounded" style={{accentColor: settings.accentColor}} />
@@ -529,15 +537,16 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
                 {
                     level: 1, title: "SAVING & SYNCING", children: [
                         { level: 2, title: "How Saving Works", content: ["Browsers cannot directly overwrite files on your computer. When you click 'Save', Nové packages your manuscript and settings into a timestamped ZIP file. Save this ZIP to your hard drive, cloud folder, or USB stick."] },
-                        { level: 2, title: "Back to Novelos", content: ["To resume work in the full Novelos Desktop application, use the 'Import from Nové' button and select your latest ZIP file. Everything—including your design choices—will be synchronized."] }
+                        { level: 2, title: "Resuming Work", content: ["To resume a previous session, use the Import button (tray icon) in the toolbar to load your latest ZIP backup. This will restore all your chapters and settings instantly."] },
+                        { level: 2, title: "Back to Novelis", content: ["To resume work in the full Novelis Desktop application, use the 'Import from Nové' button and select your latest ZIP file. Everything—including your design choices—will be synchronized."] }
                     ]
                 },
                 {
                     level: 1, title: "FREQUENTLY ASKED QUESTIONS", children: [
                         { level: 2, title: "Is my data private?", content: ["Absolutely. Nové runs entirely on your local machine. No data is sent to our servers. Your words live inside the HTML file and the ZIP snapshots you create."] },
                         { level: 2, title: "Can I use it offline?", content: ["Yes. Once you have the Nové.html file, you do not need an internet connection to write or save snapshots."] },
-                        { level: 2, title: "Why a ZIP file instead of a Word doc?", content: ["The ZIP protocol is our 'Save' method. It allows us to bundle the structural data needed for syncing back to Novelos alongside human-readable RTF backups of every chapter."] },
-                        { level: 2, title: "Where are my characters and world notes?", content: ["The portable Nové editor focuses on pure writing. While Nové is the perfect tool for distraction-free drafting on any device, the heavy lifting of structural analysis and world management happens in the full Novelos suite.", "Think of Nové as your agile satellite and Novelos as your powerful mothership. When you return to your desktop, Novelos unlocks a universe of features: the AI-powered Pacing Heatmap, full character relationship graphs, the World-Building Crucible, and the Social Media Studio to automate your marketing. By separating drafting from structural engineering, you maintain creative flow while ensuring your story bible is always just a sync away."] }
+                        { level: 2, title: "Why a ZIP file instead of a Word doc?", content: ["The ZIP protocol is our 'Save' method. It allows us to bundle the structural data needed for syncing back to Novelis alongside human-readable RTF backups of every chapter."] },
+                        { level: 2, title: "Where are my characters and world notes?", content: ["The portable Nové editor focuses on pure writing. While Nové is the perfect tool for distraction-free drafting on any device, the heavy lifting of structural analysis and world management happens in the full Novelis suite.", "Think of Nové as your agile satellite and Novelis as your powerful mothership. When you return to your desktop, Novelis unlocks a universe of features: the AI-powered Pacing Heatmap, full character relationship graphs, the World-Building Crucible, and the Social Media Studio to automate your marketing. By separating drafting from structural engineering, you maintain creative flow while ensuring your story bible is always just a sync away."] }
                     ]
                 }
             ];
@@ -567,10 +576,10 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
                             ))}
                             
                             <div className="p-6 mt-6 rounded-xl border-2 text-center space-y-3 bg-black/10" style={{ borderColor: settings.accentColor }}>
-                                <h4 className="font-bold text-lg">Need the full Novelos manual?</h4>
+                                <h4 className="font-bold text-lg">Need the full Novelis manual?</h4>
                                 <p className="text-sm opacity-80">For a comprehensive guide to the full desktop suite, including AI features and structural tools, visit the online manual.</p>
                                 <a 
-                                    href="https://www.thomascorfield.com/post/novelos-user-guide" 
+                                    href="https://www.thomascorfield.com/post/novelis-user-guide" 
                                     target="_blank" 
                                     rel="noopener noreferrer"
                                     className="inline-block px-6 py-2 rounded-lg font-bold text-white transition-transform active:scale-95"
@@ -581,7 +590,519 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
                             </div>
 
                             <div className="pt-10 mt-10 border-t text-center opacity-40 text-xs" style={{borderColor: settings.toolbarInputBorderColor}}>
-                                <p>Nové v7.5.8 Portable &mdash; Part of the Novelos Ecosystem</p>
+                                <p>Nové v76.6 Portable &mdash; Part of the Novelis Ecosystem</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const StatsModal = ({ onClose, settings, totalWordCount, sessionWordCount, goals, onGoalsChange, chapters }) => {
+            const [daily, setDaily] = useState(goals.dailyGoal.toString());
+            const [manuscript, setManuscript] = useState(goals.manuscriptGoal.toString());
+            const chapterWordCounts = useMemo(() => {
+                return chapters.map(chapter => ({
+                    id: chapter.id,
+                    title: \`\${chapter.title} \${chapter.chapterNumber}\`,
+                    count: getWordCount(chapter.content)
+                })).sort((a,b) => b.count - a.count);
+            }, [chapters]);
+            const progress = Math.min(100, (totalWordCount / (parseInt(manuscript || '1', 10))) * 100);
+            const handleSave = () => {
+                onGoalsChange({ dailyGoal: parseInt(daily || '0', 10), manuscriptGoal: parseInt(manuscript || '0', 10) });
+                onClose();
+            };
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm" onClick={onClose}>
+                    <div className="w-full m-4 rounded-lg shadow-2xl flex flex-col max-w-2xl max-h-[90vh]" style={{backgroundColor: settings.toolbarBg, color: settings.textColor, borderColor: settings.toolbarInputBorderColor}} onClick={e => e.stopPropagation()}>
+                        <div className="p-4 border-b flex justify-between items-center" style={{borderColor: settings.toolbarButtonBg}}>
+                            <h3 className="font-bold">Writing Statistics & Goals</h3>
+                            <button onClick={onClose} className="p-1 hover:bg-white/10 rounded"><Icons.Close /></button>
+                        </div>
+                        <div className="p-6 overflow-y-auto">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-6">
+                                    <div>
+                                        <h3 className="font-semibold mb-2">Manuscript Goal</h3>
+                                        <div className="relative h-6 w-full rounded-full" style={{backgroundColor: settings.toolbarButtonBg}}>
+                                             <div className="absolute top-0 left-0 h-6 rounded-full" style={{width: \`\${progress}%\`, backgroundColor: settings.accentColor}}></div>
+                                             <span className="absolute inset-0 flex items-center justify-center text-xs font-bold" style={{textShadow: '0 1px 2px rgba(0,0,0,0.5)'}}>{totalWordCount.toLocaleString()} / {parseInt(manuscript || '0', 10).toLocaleString()} words</span>
+                                        </div>
+                                        <input type="text" inputMode="numeric" pattern="[0-9]*" value={manuscript} onChange={e => { const val = e.target.value; if (val === '' || /^\d+$/.test(val)) setManuscript(val); }} className="w-full mt-2 px-2 py-1.5 rounded-md border text-sm" style={{ backgroundColor: settings.backgroundColor, color: settings.textColor, borderColor: settings.toolbarInputBorderColor }} />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-semibold mb-2">Daily Writing Goal</h3>
+                                         <input type="text" inputMode="numeric" pattern="[0-9]*" value={daily} onChange={e => { const val = e.target.value; if (val === '' || /^\d+$/.test(val)) setDaily(val); }} className="w-full px-2 py-1.5 rounded-md border text-sm" style={{ backgroundColor: settings.backgroundColor, color: settings.textColor, borderColor: settings.toolbarInputBorderColor }} />
+                                    </div>
+                                     <button onClick={handleSave} className="w-full px-4 py-2 rounded-md text-white font-bold" style={{ backgroundColor: settings.successColor || '#16a34a' }}>Save Goals</button>
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold mb-2">Chapter Word Counts</h3>
+                                    <div className="max-h-80 overflow-y-auto pr-2 space-y-2">
+                                        {chapterWordCounts.map(chapter => (
+                                            <div key={chapter.id} className="flex justify-between items-center text-sm p-2 rounded" style={{backgroundColor: settings.toolbarButtonBg}}>
+                                                <span className="truncate pr-4">{chapter.title}</span>
+                                                <span className="font-semibold flex-shrink-0">{chapter.count.toLocaleString()}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const FindReplacePanel = ({ onClose, settings, chapters, activeChapterId, onNavigateMatch, onReplace, onReplaceAll }) => {
+            const [find, setFind] = useState('');
+            const [replaceText, setReplaceText] = useState('');
+            const [results, setResults] = useState([]);
+            const [scope, setScope] = useState('chapter');
+            const [position, setPosition] = useState({ x: window.innerWidth - 340, y: 80 });
+            const [isDragging, setIsDragging] = useState(false);
+            const dragOffset = useRef({ x: 0, y: 0 });
+
+            useEffect(() => {
+                const handleMouseMove = (e) => { if (isDragging) setPosition({ x: e.clientX - dragOffset.current.x, y: e.clientY - dragOffset.current.y }); };
+                const handleMouseUp = () => setIsDragging(false);
+                if (isDragging) { window.addEventListener('mousemove', handleMouseMove); window.addEventListener('mouseup', handleMouseUp); }
+                return () => { window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mouseup', handleMouseUp); };
+            }, [isDragging]);
+
+            const performSearch = () => {
+                if(!find) return setResults([]);
+                const regex = new RegExp(find.replace(/[.*+?^$\{ }()|[\]\\]/g, '\\$&'), 'gi');
+                const newResults = [];
+                const targetChapters = scope === 'chapter' ? chapters.filter(c => c.id === activeChapterId) : chapters;
+                targetChapters.forEach(ch => {
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = ch.content;
+                    const text = tempDiv.innerText;
+                    let match;
+                    while ((match = regex.exec(text)) !== null) {
+                        const start = Math.max(0, match.index - 20);
+                        const end = Math.min(text.length, match.index + match[0].length + 20);
+                        let context = text.substring(start, end);
+                        if(start > 0) context = '...' + context;
+                        if(end < text.length) context = context + "...";
+                        newResults.push({ id: Math.random().toString(), chapterId: ch.id, chapterName: ch.title, index: match.index, length: match[0].length, context: context });
+                    }
+                });
+                setResults(newResults);
+            };
+
+            return (
+                <div className="fixed z-50 w-80 rounded-lg shadow-2xl border flex flex-col" style={{top: position.y, left: position.x, backgroundColor: settings.toolbarBg, borderColor: settings.toolbarInputBorderColor, color: settings.textColor}}>
+                    <div className="p-3 border-b flex justify-between items-center cursor-move select-none" style={{borderColor: settings.toolbarButtonBg}} onMouseDown={(e) => { setIsDragging(true); const rect = e.currentTarget.parentElement.getBoundingClientRect(); dragOffset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top }; }}>
+                        <h3 className="font-bold text-sm flex items-center gap-2"><Icons.Search /> Find & Replace</h3>
+                        <button onClick={onClose} className="p-1 hover:bg-white/10 rounded"><Icons.Close /></button>
+                    </div>
+                    <div className="p-3 space-y-3" style={{backgroundColor: settings.backgroundColor}}>
+                        <div className="flex bg-black/10 p-1 rounded">
+                            <button onClick={() => setScope('chapter')} className={\`flex-1 py-1 text-xs rounded \${scope === 'chapter' ? 'bg-white/10 shadow-sm' : 'opacity-50'}\`}>Current</button>
+                            <button onClick={() => setScope('manuscript')} className={\`flex-1 py-1 text-xs rounded \${scope === 'manuscript' ? 'bg-white/10 shadow-sm' : 'opacity-50'}\`}>Manuscript</button>
+                        </div>
+                        <input value={find} onChange={e => setFind(e.target.value)} onKeyDown={e => e.key === 'Enter' && performSearch()} placeholder="Find..." className="w-full p-2 rounded text-sm bg-transparent border" style={{borderColor: settings.toolbarInputBorderColor}} />
+                        <input value={replaceText} onChange={e => setReplaceText(e.target.value)} placeholder="Replace..." className="w-full p-2 rounded text-sm bg-transparent border" style={{borderColor: settings.toolbarInputBorderColor}} />
+                        <div className="flex justify-end gap-2"><button onClick={performSearch} className="px-3 py-1 text-xs border rounded" style={{borderColor: settings.toolbarInputBorderColor}}>Find All</button></div>
+                        <div className="flex gap-2 pt-2 border-t" style={{borderColor: settings.toolbarInputBorderColor}}>
+                            <button onClick={() => onReplace(replaceText)} className="flex-1 py-1.5 text-xs rounded border hover:bg-white/5" style={{borderColor: settings.toolbarInputBorderColor}}>Replace</button>
+                            <button onClick={() => onReplaceAll(find, replaceText, scope)} className="flex-1 py-1.5 text-xs rounded text-white hover:opacity-90" style={{backgroundColor: settings.accentColor}}>Replace All</button>
+                        </div>
+                    </div>
+                    <div className="max-h-60 overflow-y-auto border-t pt-0 bg-opacity-50" style={{borderColor: settings.toolbarInputBorderColor, backgroundColor: settings.toolbarBg}}>
+                        <div className="p-2 text-xs opacity-50">{results.length} result{results.length !== 1 ? 's' : ''}</div>
+                        {results.map(r => (
+                            <div key={r.id} onClick={() => onNavigateMatch(r)} className="p-2 hover:bg-white/5 rounded cursor-pointer text-xs border-b border-white/5 last:border-0">
+                                {scope === 'manuscript' && <div className="opacity-50 text-[10px] uppercase font-bold mb-1">{r.chapterName}</div>}
+                                <div dangerouslySetInnerHTML={{__html: r.context.replace(new RegExp(\`(\${find.replace(/[.*+?^$\{ }()|[\\]\\\\]/g, '\\\\\\\\$&')})\`, 'gi'), '<span style="background-color: #facc15; color: #000; font-weight: bold;">$1</span>')}} />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        const NoveManuscript = ({ chapter, onChange, settings, isFocusMode, onPlaySound, notesOpen, onPageInfoChange, isSpellcheckEnabled, searchTarget }) => {
+            const editorRef = useRef(null);
+            const editorContainerRef = useRef(null);
+            const isTyping = useRef(false);
+            const stableScrollLeft = useRef(0);
+            const typingTimeoutRef = useRef(null);
+            const isLocalUpdate = useRef(false);
+            const [layout, setLayout] = useState({ colWidth: 0, stride: 0, gap: 60, sideMargin: 40, columns: 2 });
+            const [pageInfo, setPageInfo] = useState({ current: 1, total: 1 });
+            const [isTransitioning, setIsTransitioning] = useState(false);
+
+            const calculateLayout = useCallback(() => {
+                if (!editorContainerRef.current) return;
+                const containerWidth = editorContainerRef.current.clientWidth;
+                const minTwoPageColWidth = 450;
+                const GAP_PX = 60;
+                const SIDE_MARGIN_PX = 40;
+                const availableWidthTwo = Math.max(0, containerWidth - GAP_PX - (2 * SIDE_MARGIN_PX));
+                const safeColWidthTwo = Math.floor(availableWidthTwo / 2);
+                let columns = 2;
+                let colWidth = safeColWidthTwo;
+                if (safeColWidthTwo < minTwoPageColWidth) {
+                    columns = 1;
+                    const availableWidthOne = Math.max(0, containerWidth - (2 * SIDE_MARGIN_PX));
+                    colWidth = Math.floor(availableWidthOne);
+                }
+                const stride = colWidth + GAP_PX;
+                setLayout({ colWidth, stride, gap: GAP_PX, sideMargin: SIDE_MARGIN_PX, columns });
+                
+                const scrollLeft = editorContainerRef.current.scrollLeft;
+                const currentColumnIndex = stride > 0 ? Math.round(scrollLeft / stride) : 0;
+                const contentWidth = editorContainerRef.current.scrollWidth - (2 * SIDE_MARGIN_PX);
+                const totalColumns = stride > 0 ? Math.ceil((contentWidth + GAP_PX) / stride) : 1;
+                const actualPageCount = Math.max(2, totalColumns - 1);
+                const currentLeftPage = currentColumnIndex + 1;
+                setPageInfo({ current: currentLeftPage, total: actualPageCount });
+            }, []);
+
+            useEffect(() => { if(onPageInfoChange) onPageInfoChange(pageInfo); }, [pageInfo, onPageInfoChange]);
+            useEffect(() => { document.execCommand('defaultParagraphSeparator', false, 'div'); }, []);
+
+            useLayoutEffect(() => {
+                const timer = setTimeout(calculateLayout, 10);
+                window.addEventListener('resize', calculateLayout);
+                return () => { window.removeEventListener('resize', calculateLayout); clearTimeout(timer); }
+            }, [calculateLayout, isFocusMode, settings.fontSize, settings.fontFamily, notesOpen]);
+
+            useLayoutEffect(() => {
+                const wasLocal = isLocalUpdate.current;
+                if (editorRef.current && editorRef.current.innerHTML !== chapter.content) {
+                    if (!wasLocal) editorRef.current.innerHTML = chapter.content;
+                }
+                isLocalUpdate.current = false;
+                if (!wasLocal) calculateLayout();
+            }, [chapter.id, chapter.content, calculateLayout]);
+
+            const snapToSpread = useCallback((targetSpreadIndex, useTransition = true) => {
+                if (!editorContainerRef.current || layout.stride === 0) return;
+                const currentTotalPages = Math.max(2, Math.ceil((editorContainerRef.current.scrollWidth - (2 * layout.sideMargin)) / layout.stride) + 1);
+                const clampedIndex = Math.max(0, Math.min(targetSpreadIndex, currentTotalPages));
+                const targetScrollLeft = clampedIndex * layout.stride;
+                if (Math.abs(editorContainerRef.current.scrollLeft - targetScrollLeft) < 2) return;
+                if (settings.transitionStyle === 'fade' && useTransition) {
+                    setIsTransitioning(true);
+                    setTimeout(() => {
+                        if (editorContainerRef.current) editorContainerRef.current.scrollTo({ left: targetScrollLeft, behavior: 'instant' });
+                        requestAnimationFrame(() => setIsTransitioning(false));
+                    }, 150);
+                } else {
+                    editorContainerRef.current.scrollTo({ left: targetScrollLeft, behavior: useTransition ? 'smooth' : 'instant' });
+                }
+            }, [layout, settings.transitionStyle]);
+
+            useEffect(() => {
+                if (searchTarget && searchTarget.chapterId === chapter.id) {
+                    const editor = editorRef.current;
+                    if (!editor) return;
+                    const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT, null);
+                    let currentIndex = 0;
+                    let node;
+                    while((node = walker.nextNode())) {
+                        const nodeLen = node.textContent.length;
+                        if (currentIndex + nodeLen > searchTarget.index) {
+                            const start = searchTarget.index - currentIndex;
+                            const end = Math.min(start + searchTarget.length, nodeLen);
+                            const range = document.createRange();
+                            range.setStart(node, start); range.setEnd(node, end);
+                            const sel = window.getSelection();
+                            sel.removeAllRanges(); sel.addRange(range);
+                            const rect = range.getBoundingClientRect();
+                            const container = editorContainerRef.current;
+                            if (container && rect && layout.stride > 0) {
+                                const relX = (rect.left - container.getBoundingClientRect().left) + container.scrollLeft;
+                                const spread = Math.floor(Math.max(0, relX - layout.sideMargin) / layout.stride);
+                                snapToSpread(spread, true);
+                            }
+                            return;
+                        }
+                        currentIndex += nodeLen;
+                    }
+                }
+            }, [searchTarget, layout, chapter.id, snapToSpread]);
+
+            const updatePageInfo = useCallback(() => {
+                if (!editorContainerRef.current || layout.stride === 0) return;
+                const container = editorContainerRef.current;
+                const scrollLeft = container.scrollLeft;
+                const currentColumnIndex = Math.round(scrollLeft / layout.stride);
+                const contentWidth = container.scrollWidth - (2 * layout.sideMargin);
+                const totalColumns = Math.ceil((contentWidth + layout.gap) / layout.stride);
+                const actualPageCount = Math.max(2, totalColumns - 1);
+                const currentLeftPage = currentColumnIndex + 1;
+                setPageInfo({ current: currentLeftPage, total: actualPageCount });
+            }, [layout]);
+
+            const handleScroll = useDebouncedCallback(() => {
+                if (!editorContainerRef.current || layout.stride === 0) return;
+                updatePageInfo();
+                if (!isTyping.current) {
+                    const currentScroll = editorContainerRef.current.scrollLeft;
+                    const nearestSpread = Math.round(currentScroll / layout.stride);
+                    snapToSpread(nearestSpread, false);
+                }
+            }, 150);
+
+            useEffect(() => {
+                const container = editorContainerRef.current;
+                if (!container) return;
+                const handleNativeScroll = () => {
+                    if (isTyping.current) {
+                        const diff = Math.abs(container.scrollLeft - stableScrollLeft.current);
+                        if (diff > 5) container.scrollLeft = stableScrollLeft.current;
+                    } else {
+                        stableScrollLeft.current = container.scrollLeft;
+                    }
+                };
+                container.addEventListener('scroll', handleNativeScroll, { passive: false });
+                return () => container.removeEventListener('scroll', handleNativeScroll);
+            }, []);
+
+            const checkAndEnforceCaretVisibility = useCallback(() => {
+                const container = editorContainerRef.current;
+                const editor = editorRef.current;
+                if (document.activeElement !== editor && !editor?.contains(document.activeElement)) return;
+                const selection = window.getSelection();
+                if (!container || !editor || !selection || selection.rangeCount === 0 || layout.stride === 0) return;
+                const range = selection.getRangeAt(0);
+                if (!editor.contains(range.commonAncestorContainer)) return;
+                const caretRect = range.getBoundingClientRect();
+                if (caretRect.width === 0 && caretRect.height === 0 && caretRect.x === 0 && caretRect.y === 0) return;
+                const containerRect = container.getBoundingClientRect();
+                const relativeCaretX = (caretRect.left - containerRect.left) + container.scrollLeft;
+                const adjustedCaretX = Math.max(0, relativeCaretX - layout.sideMargin);
+                const columnIndex = Math.floor(adjustedCaretX / layout.stride);
+                const currentScrollIndex = Math.round(container.scrollLeft / layout.stride);
+                if (columnIndex >= currentScrollIndex + layout.columns) snapToSpread(columnIndex - (layout.columns - 1), false);
+                else if (columnIndex < currentScrollIndex) snapToSpread(columnIndex, false);
+                updatePageInfo();
+            }, [layout, snapToSpread, updatePageInfo]);
+
+            const handleBeforeInput = useCallback(() => {
+                if (editorContainerRef.current && layout.stride > 0) {
+                    isTyping.current = true;
+                    const currentScroll = editorContainerRef.current.scrollLeft;
+                    const nearestSpread = Math.round(currentScroll / layout.stride);
+                    stableScrollLeft.current = nearestSpread * layout.stride;
+                    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+                }
+            }, [layout.stride]);
+
+            const handleInput = (e) => {
+                isLocalUpdate.current = true;
+                const editor = e.currentTarget;
+                const sel = window.getSelection();
+                if (sel && sel.rangeCount > 0) {
+                    const range = sel.getRangeAt(0);
+                    const node = range.startContainer;
+                    const offset = range.startOffset;
+                    if (node.nodeType === Node.TEXT_NODE) {
+                        const textContent = node.textContent || '';
+                        const nativeEvent = e.nativeEvent;
+                        const insertedChar = nativeEvent?.data;
+                        if (nativeEvent?.inputType === 'insertText' && (insertedChar === '"' || insertedChar === "'")) {
+                            const textBefore = textContent.substring(0, offset - 1);
+                            const charBefore = textBefore.slice(-1);
+                            const isOpenQuoteCondition = textBefore.length === 0 || /[\s(\[{“‘]/.test(charBefore);
+                            let replacementChar = insertedChar === '"' ? (isOpenQuoteCondition ? '“' : '”') : (isOpenQuoteCondition ? '‘' : '’');
+                            if (replacementChar) {
+                                node.textContent = textContent.substring(0, offset - 1) + replacementChar + textContent.substring(offset);
+                                const newRange = document.createRange();
+                                newRange.setStart(node, offset); newRange.collapse(true);
+                                sel.removeAllRanges(); sel.addRange(newRange);
+                            }
+                        }
+                    }
+                }
+                onChange(editor.innerHTML);
+                if (sel && sel.rangeCount > 0 && editorContainerRef.current && layout.stride > 0) {
+                     const range = sel.getRangeAt(0);
+                     if (editorRef.current?.contains(range.commonAncestorContainer)) {
+                         const caretRect = range.getBoundingClientRect();
+                         const containerRect = editorContainerRef.current.getBoundingClientRect();
+                         if (caretRect.width !== 0 || caretRect.height !== 0 || caretRect.x !== 0) {
+                             const relativeCaretX = (caretRect.left - containerRect.left) + editorContainerRef.current.scrollLeft;
+                             const adjustedCaretX = Math.max(0, relativeCaretX - layout.sideMargin);
+                             const columnIndex = Math.floor(adjustedCaretX / layout.stride);
+                             const currentScrollIndex = Math.round(stableScrollLeft.current / layout.stride);
+                             let targetSpread = currentScrollIndex;
+                             if (columnIndex >= currentScrollIndex + layout.columns) targetSpread = columnIndex - (layout.columns - 1);
+                             else if (columnIndex < currentScrollIndex) targetSpread = columnIndex;
+                             const targetScrollLeft = targetSpread * layout.stride;
+                             if (targetScrollLeft !== stableScrollLeft.current) {
+                                 stableScrollLeft.current = targetScrollLeft;
+                                 editorContainerRef.current.scrollLeft = targetScrollLeft;
+                             }
+                         }
+                     }
+                }
+                requestAnimationFrame(() => requestAnimationFrame(() => updatePageInfo()));
+            };
+
+            const handleKeyDown = (e) => {
+                if (editorContainerRef.current && layout.stride > 0) {
+                    isTyping.current = true;
+                    const currentScroll = editorContainerRef.current.scrollLeft;
+                    const nearestSpread = Math.round(currentScroll / layout.stride);
+                    stableScrollLeft.current = nearestSpread * layout.stride;
+                    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+                }
+                if (e.key === 'Backspace') {
+                    const sel = window.getSelection();
+                    if (sel && sel.rangeCount > 0 && sel.isCollapsed) {
+                        const range = sel.getRangeAt(0);
+                        const node = range.startContainer;
+                        let p = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+                        while(p && p.nodeName !== 'DIV' && p.parentElement !== e.currentTarget) p = p.parentElement;
+                        if (p && p.parentElement === e.currentTarget) {
+                            const isAtStart = (range.startOffset === 0) && (node === p || node === p.firstChild || (node.parentNode === p && node === p.firstChild));
+                            if (isAtStart) {
+                                if (!p.style.textIndent || p.style.textIndent !== '0px') {
+                                    e.preventDefault(); p.style.textIndent = '0px';
+                                    onChange(e.currentTarget.innerHTML); return;
+                                }
+                            }
+                        }
+                    }
+                }
+                if (e.key === 'Enter') {
+                    e.preventDefault(); document.execCommand('insertParagraph', false);
+                    const selection = window.getSelection();
+                    if (selection && selection.rangeCount > 0) {
+                        let node = selection.anchorNode;
+                        while (node && (node.nodeType !== Node.ELEMENT_NODE || node.nodeName !== 'DIV') && node.parentNode !== e.currentTarget) node = node.parentNode;
+                        if (node && node.nodeName === 'DIV' && node.style.textIndent === '0px') {
+                            node.style.removeProperty('text-indent');
+                            if (!node.getAttribute('style')) node.removeAttribute('style');
+                        }
+                    }
+                    onPlaySound('enter'); onChange(e.currentTarget.innerHTML);
+                    setTimeout(checkAndEnforceCaretVisibility, 10);
+                    return;
+                }
+                if (e.key === 'Enter') onPlaySound('enter'); else if (!['Shift', 'Control', 'Alt', 'Meta', 'CapsLock'].includes(e.key)) onPlaySound('key');
+                if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) setTimeout(checkAndEnforceCaretVisibility, 10);
+                if (e.key === 'PageDown') { e.preventDefault(); const currentScroll = editorContainerRef.current.scrollLeft; const currentSpread = Math.round(currentScroll / layout.stride); snapToSpread(currentSpread + 1); }
+                else if (e.key === 'PageUp') { e.preventDefault(); const currentScroll = editorContainerRef.current.scrollLeft; const currentSpread = Math.round(currentScroll / layout.stride); snapToSpread(currentSpread - 1); }
+            };
+
+            const handleKeyUp = useCallback(() => {
+                if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+                typingTimeoutRef.current = setTimeout(() => {
+                    isTyping.current = false;
+                    if (editorContainerRef.current && layout.stride > 0) {
+                        const currentScroll = editorContainerRef.current.scrollLeft;
+                        const nearestSpread = Math.round(currentScroll / layout.stride);
+                        stableScrollLeft.current = nearestSpread * layout.stride;
+                    }
+                }, 150);
+            }, [layout.stride]);
+
+            const handleWheel = (e) => {
+                if (!editorContainerRef.current || layout.stride === 0) return;
+                if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+                    e.preventDefault();
+                    const currentScroll = editorContainerRef.current.scrollLeft;
+                    const currentSpreadIndex = Math.round(currentScroll / layout.stride);
+                    if (Math.abs(e.deltaY) > 20) {
+                        const direction = Math.sign(e.deltaY);
+                        const nextSpreadIndex = Math.max(0, currentSpreadIndex + direction);
+                        snapToSpread(nextSpreadIndex);
+                    }
+                }
+            };
+
+            const exactContentWidth = layout.colWidth > 0 ? (layout.colWidth * layout.columns) + (layout.gap * (layout.columns - 1)) : '100%';
+            const editorStyle = {
+                fontFamily: settings.fontFamily || 'Lora', fontSize: \`\${settings.fontSize || 1.4}em\`, color: settings.textColor, lineHeight: settings.lineHeight || 1.8,
+                textAlign: settings.textAlign || 'left', hyphens: settings.textAlign === 'justify' ? 'auto' : 'manual', WebkitHyphens: settings.textAlign === 'justify' ? 'auto' : 'manual',
+                height: 'calc(100% - 6rem)', columnFill: 'auto', columnGap: \`\${layout.gap}px\`, columnWidth: \`\${layout.colWidth}px\`, columnCount: layout.columns,
+                width: typeof exactContentWidth === 'number' ? \`\${exactContentWidth}px\` : exactContentWidth,
+                paddingTop: '3rem', paddingBottom: '3rem', paddingLeft: \`\${layout.sideMargin}px\`, paddingRight: \`\${layout.sideMargin}px\`,
+                boxSizing: 'content-box', opacity: isTransitioning ? 0 : 1, transition: 'opacity 0.15s ease-in-out', orphans: 2, widows: 2, transform: 'translateZ(0)'
+            };
+
+            return (
+                <div className="flex-grow relative min-h-0 overflow-hidden">
+                    <div ref={editorContainerRef} className="absolute inset-0 overflow-x-auto overflow-y-hidden focus:outline-none no-scrollbar" onWheel={handleWheel} onScroll={handleScroll} onClick={() => setTimeout(checkAndEnforceCaretVisibility, 10)} style={{ overflowAnchor: 'none' }}>
+                        {layout.columns === 2 && (settings.showBookSpine === true) && <div className="book-spine-effect" />}
+                        <div ref={editorRef} contentEditable suppressContentEditableWarning spellCheck={isSpellcheckEnabled} className="editor-content outline-none" style={editorStyle} onBeforeInput={handleBeforeInput} onInput={handleInput} onKeyDown={handleKeyDown} onKeyUp={handleKeyUp} onBlur={checkAndEnforceCaretVisibility} />
+                    </div>
+                    <div className="absolute bottom-4 right-8 z-10 text-xs font-sans pointer-events-none select-none transition-opacity duration-300 backdrop-blur-sm px-2 py-1 rounded" style={{ color: settings.textColor, opacity: 0.6, backgroundColor: settings.toolbarBg ? \`\${settings.toolbarBg}40\` : 'transparent' }}>
+                        {layout.columns === 1 ? <span>Page {pageInfo.current} of {pageInfo.total}</span> : <span>Pages {pageInfo.current} and {pageInfo.current + 1} of {pageInfo.total}</span>}
+                    </div>
+                </div>
+            );
+        };
+
+        const DesignGalleryModal = ({ isOpen, onClose, settings, onSettingsChange }) => {
+            if (!isOpen) return null;
+            const [newUrl, setNewUrl] = useState('');
+            const handleFileUpload = (e) => {
+                const file = e.target.files[0];
+                if (file) { const reader = new FileReader(); reader.onload = (ev) => onSettingsChange({ backgroundImage: ev.target.result }); reader.readAsDataURL(file); }
+            };
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm" onClick={onClose}>
+                    <div className="w-full max-w-3xl m-4 rounded-lg shadow-2xl flex flex-col overflow-hidden" style={{backgroundColor: settings.toolbarBg, color: settings.textColor}} onClick={e => e.stopPropagation()}>
+                        <div className="p-4 border-b flex justify-between items-center" style={{borderColor: settings.toolbarButtonBg}}>
+                            <h3 className="font-bold">Design Gallery</h3>
+                            <button onClick={onClose}><Icons.Close /></button>
+                        </div>
+                        <div className="p-6 overflow-y-auto max-h-[80vh] space-y-6">
+                            <div>
+                                <h4 className="font-semibold mb-3 opacity-80">Color Themes</h4>
+                                <div className="flex flex-wrap gap-3">
+                                    {Object.keys(THEMES).map(name => ( <button key={name} onClick={() => onSettingsChange({ ...THEMES[name], themeName: name, backgroundImage: null })} className="px-4 py-2 rounded border" style={{borderColor: settings.toolbarButtonBg, backgroundColor: settings.toolbarButtonBg}}>{name}</button> ))}
+                                </div>
+                            </div>
+                            <div>
+                                <h4 className="font-semibold mb-3 opacity-80">Background Image</h4>
+                                <div className="space-y-4">
+                                    <div className="flex gap-2">
+                                        <input type="text" placeholder="Image URL" value={newUrl} onChange={e => setNewUrl(e.target.value)} className="flex-grow px-2 py-1 rounded text-black bg-white border" />
+                                        <button onClick={() => onSettingsChange({ backgroundImage: newUrl })} className="px-3 py-1 rounded text-white" style={{backgroundColor: settings.accentColor}}>Set</button>
+                                        <div className="relative">
+                                            <input type="file" onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" />
+                                            <button className="px-3 py-1 rounded" style={{backgroundColor: settings.toolbarButtonBg, color: settings.textColor}}>Upload</button>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-end gap-4">
+                                        <div className="flex-grow">
+                                            <label className="text-xs block mb-1">Image Opacity: {settings.backgroundImageOpacity}</label>
+                                            <input type="range" min="0" max="1" step="0.1" value={settings.backgroundImageOpacity} onChange={e => onSettingsChange({ backgroundImageOpacity: parseFloat(e.target.value) })} className="w-full" />
+                                        </div>
+                                        {settings.backgroundImage && <button onClick={() => onSettingsChange({ backgroundImage: null })} className="px-3 py-2 rounded text-xs border hover:bg-white/10 transition-colors flex-shrink-0" style={{borderColor: settings.toolbarButtonBg, color: settings.textColor}}>Remove Image</button>}
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                <h4 className="font-semibold mb-3 opacity-80">Novelis Collection</h4>
+                                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+                                    {DEFAULT_BGS.map((bg, i) => ( <div key={i} onClick={() => onSettingsChange({ backgroundImage: bg.url })} className="aspect-square rounded overflow-hidden cursor-pointer hover:opacity-80 border-2 border-transparent hover:border-white transition-all"><img src={bg.url} className="w-full h-full object-cover" loading="lazy" /></div> ))}
+                                </div>
+                            </div>
+                            <div className="border-t pt-4" style={{borderColor: settings.toolbarButtonBg}}>
+                                <h4 className="font-semibold mb-3 opacity-80">Display Options</h4>
+                                <div className="flex items-center gap-4 p-2 rounded-md" style={{backgroundColor: settings.backgroundColor}}>
+                                    <label className="flex items-center select-none cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={settings.showBookSpine === true}
+                                            onChange={(e) => onSettingsChange({ showBookSpine: e.target.checked })}
+                                            className="mr-2 h-4 w-4 rounded cursor-pointer"
+                                            style={{accentColor: settings.accentColor}}
+                                        />
+                                        Show Book Spine Shadow
+                                    </label>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -590,9 +1111,12 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
         };
 
         const NoveApp = () => {
-            const [chapters, setChapters] = useState(initialState?.chapters || []);
+            const [chapters, setChapters] = useState(() => {
+                if (initialState?.chapters && initialState.chapters.length > 0) return initialState.chapters;
+                return [{ id: 'chap_1', title: 'Chapter 1', chapterNumber: 1, content: '<div><br></div>', notes: '', rawNotes: '' }];
+            });
             const [shortcuts, setShortcuts] = useState(initialState?.shortcuts || []);
-            const [activeChapterId, setActiveChapterId] = useState(initialState?.chapters[0]?.id || '');
+            const [activeChapterId, setActiveChapterId] = useState(initialState?.chapters?.[0]?.id || 'chap_1');
             const [notesOpen, setNotesOpen] = useState(false);
             const [isFocusMode, setIsFocusMode] = useState(false);
             const [isFullscreen, setIsFullscreen] = useState(false);
@@ -604,18 +1128,20 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
             const [isSpellcheckEnabled, setIsSpellcheckEnabled] = useState(false);
             const [pageInfo, setPageInfo] = useState({ current: 1, total: 1 });
             const [isSaving, setIsSaving] = useState(false);
+            const [isImporting, setIsImporting] = useState(false);
             const [searchTarget, setSearchTarget] = useState(null);
             const [portableDirHandle, setPortableDirHandle] = useState(null);
             const [hasAcceptedEULA, setHasAcceptedEULA] = useState(() => localStorage.getItem('noveli_eula_accepted') === 'true');
             const isFirstRun = useRef(true);
             const [notification, setNotification] = useState(null);
-            const [settings, setSettings] = useState(initialSettings);
-            const [writingGoals, setWritingGoals] = useState(initialGoals);
+            const [settings, setSettings] = useState(initialSettings || THEMES.Charcoal);
+            const [writingGoals, setWritingGoals] = useState(initialGoals || { manuscriptGoal: 50000, dailyGoal: 2000 });
             const initialTotal = useRef(0);
             const [sessionCount, setSessionCount] = useState(0);
             const fontOptions = ["Lora", "Merriweather", "Times New Roman", "Bookman Old Style", "Georgia", "Roboto", "Open Sans", "Arial", "Inter", "Inconsolata"];
+            const importInputRef = useRef(null);
 
-            const activeChapter = chapters.find(c => c.id === activeChapterId) || chapters[0] || { content: '' };
+            const activeChapter = chapters.find(c => c.id === activeChapterId) || chapters[0] || { content: '<div><br></div>', title: 'New Chapter', id: 'temp_1', chapterNumber: 1 };
             const activeChapterWordCount = useMemo(() => activeChapter ? getWordCount(activeChapter.content) : 0, [activeChapter?.content]);
             const playSound = useTypewriterSound(settings.isSoundEnabled, settings.soundVolume);
             const totalWordCount = useMemo(() => chapters.reduce((acc, c) => acc + getWordCount(c.content), 0), [chapters]);
@@ -721,7 +1247,7 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
                 if (sel && !sel.isCollapsed) document.execCommand('insertText', false, replaceText);
             };
 
-            const handleUpgrade = () => window.open('https://novelos.lemonsqueezy.com/', '_blank');
+            const handleUpgrade = () => window.open('https://novelis.lemonsqueezy.com/', '_blank');
             const handleDonate = () => window.open('https://buymeacoffee.com/doovenism', '_blank');
 
             const handleAddChapter = () => {
@@ -733,6 +1259,57 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
             const handleAcceptEULA = () => {
                 setHasAcceptedEULA(true);
                 localStorage.setItem('noveli_eula_accepted', 'true');
+            };
+
+            const handleNewProject = () => {
+                if (confirm("Start a new project? This will clear all current chapters. Ensure you have saved your work!")) {
+                    const newId = 'chap_' + Date.now();
+                    setChapters([{ id: newId, title: 'Chapter 1', chapterNumber: 1, content: '<div><br></div>', notes: '', rawNotes: '' }]);
+                    setActiveChapterId(newId);
+                    setShortcuts([]);
+                    setNotification("New project started.");
+                }
+            };
+
+            const handleImportZip = async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                
+                setIsImporting(true);
+                try {
+                    const zip = new JSZip();
+                    const content = await zip.loadAsync(file);
+                    let jsonFile = content.file("project_data.json");
+                    if (!jsonFile) jsonFile = content.file("nove_data.json");
+                    
+                    if (jsonFile) {
+                        const jsonStr = await jsonFile.async("string");
+                        const json = JSON.parse(jsonStr);
+                        
+                        // Handle both full state and sync data formats
+                        const importedChapters = json.chapters || json.state?.chapters;
+                        const importedShortcuts = json.shortcuts || json.state?.shortcuts || [];
+                        const importedSettings = json.settings || json.state?.settings;
+                        
+                        if (importedChapters && importedChapters.length > 0) {
+                            setChapters(importedChapters);
+                            setShortcuts(importedShortcuts);
+                            setActiveChapterId(importedChapters[0].id);
+                            if (importedSettings) setSettings(prev => ({ ...prev, ...importedSettings }));
+                            setNotification("Project imported successfully!");
+                        } else {
+                            alert("No valid chapters found in this ZIP.");
+                        }
+                    } else {
+                        alert("Could not find project_data.json in this ZIP.");
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert("Failed to parse ZIP file.");
+                } finally {
+                    setIsImporting(false);
+                    if (importInputRef.current) importInputRef.current.value = '';
+                }
             };
 
             const handlePortableSave = async (forceNewFolder = false) => {
@@ -797,7 +1374,7 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
                                 <div className="p-4 border-b font-bold text-sm uppercase tracking-wider flex items-center justify-between" style={{borderColor: settings.toolbarButtonBg}}><span>Notes</span><button onClick={() => setNotesOpen(false)}><Icons.Close /></button></div>
                                 <div className="p-4 flex-grow overflow-y-auto space-y-4">
                                     <div className="flex-grow flex flex-col h-full"><textarea className="w-full border-none text-sm resize-none flex-grow focus:ring-0 bg-transparent" style={{color: settings.textColor}} placeholder="Jot down ideas..." defaultValue={activeChapter.rawNotes || ""} onChange={(e) => { const newNotes = e.target.value; setChapters(chapters.map(c => c.id === activeChapter.id ? { ...c, rawNotes: newNotes } : c)); }} /></div>
-                                    <div className="mt-auto pt-4 border-t" style={{borderColor: settings.toolbarButtonBg}}><div className="p-3 rounded-lg text-center" style={{backgroundColor: settings.backgroundColor + '80'}}><p className="text-xs opacity-70 mb-2">Need AI tools?</p><button className="w-full py-1.5 rounded text-xs font-bold text-white shadow-sm hover:opacity-90 transition-opacity cursor-not-allowed opacity-50" disabled style={{backgroundColor: settings.accentColor}}>Available in Novelos Desktop</button></div></div>
+                                    <div className="mt-auto pt-4 border-t" style={{borderColor: settings.toolbarButtonBg}}><div className="p-3 rounded-lg text-center" style={{backgroundColor: settings.backgroundColor + '80'}}><p className="text-xs opacity-70 mb-2">Need AI tools?</p><button className="w-full py-1.5 rounded text-xs font-bold text-white shadow-sm hover:opacity-90 transition-opacity cursor-not-allowed opacity-50" disabled style={{backgroundColor: settings.accentColor}}>Available in Novelis Desktop</button></div></div>
                                 </div>
                             </div>
                         )}
@@ -843,8 +1420,16 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
                             <button onClick={() => setIsFocusMode(!isFocusMode)} className="p-2 rounded hover:opacity-80 transition-colors" style={isFocusMode ? activeBtnStyle : btnStyle} title="Focus Mode (Esc)"><Icons.Focus /></button>
                             <button onClick={handleDonate} className="p-2 rounded hover:opacity-80 transition-colors" style={{...btnStyle, color: '#ef4444'}} title="Donate"><Icons.Heart /></button>
                             <button onClick={() => setIsUserGuideOpen(true)} className="p-2 rounded hover:opacity-80 transition-colors" style={btnStyle} title="User Guide"><Icons.Help /></button>
-                            <button onClick={handleUpgrade} className="px-3 py-1.5 rounded text-sm transition-colors hover:opacity-90" style={{backgroundColor: settings.accentColor, color: '#FFF'}} title="Upgrade to Novelos Desktop">Upgrade</button>
-                            <button onClick={() => handlePortableSave(false)} className="flex items-center gap-2 px-4 py-1.5 rounded text-sm font-medium transition-colors hover:opacity-90" style={{backgroundColor: settings.accentColor, color: '#FFF'}} title="Save Project Snapshot (Ctrl+S)"><Icons.Save /> Save</button>
+                            <button onClick={handleUpgrade} className="px-3 py-1.5 rounded text-sm transition-colors hover:opacity-90" style={{backgroundColor: settings.accentColor, color: '#FFF'}} title="Upgrade to Novelis Desktop">Upgrade</button>
+                            
+                            <div className="flex items-center gap-1 bg-black/10 p-1 rounded-lg border border-white/5 ml-2">
+                                <button onClick={handleNewProject} className="p-2 rounded hover:opacity-80 transition-colors" style={btnStyle} title="New Project"><Icons.FilePlus /></button>
+                                <button onClick={() => importInputRef.current?.click()} className="p-2 rounded hover:opacity-80 transition-colors" style={btnStyle} title="Import Project ZIP">
+                                    {isImporting ? <Icons.Spinner /> : <Icons.Import />}
+                                </button>
+                                <input type="file" ref={importInputRef} onChange={handleImportZip} accept=".zip" className="hidden" />
+                                <button onClick={() => handlePortableSave(false)} className="flex items-center gap-2 px-4 py-1.5 rounded text-sm font-medium transition-colors hover:opacity-90" style={{backgroundColor: settings.accentColor, color: '#FFF'}} title="Save Project Snapshot (Ctrl+S)"><Icons.Save /> Save</button>
+                            </div>
                         </div>
                     </div>
                     {isGalleryOpen && <DesignGalleryModal isOpen={isGalleryOpen} onClose={() => setIsGalleryOpen(false)} settings={settings} onSettingsChange={handleSettingsChange} />}

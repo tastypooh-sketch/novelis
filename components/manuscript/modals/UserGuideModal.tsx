@@ -45,7 +45,7 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({ settings, onClos
                     level: 2, 
                     title: "4. Portability & Backups",
                     content: [
-                        "• <strong>The ZIP Protocol:</strong> Novelos saves your work into timestamped ZIP archives. Keep these in your cloud folder for ultimate safety.",
+                        "• <strong>The ZIP Protocol:</strong> Novelis saves your work into timestamped ZIP archives. Keep these in your cloud folder for ultimate safety.",
                         "• <strong>Nové Portable:</strong> Export a standalone <strong>Nové.html</strong> file to your USB stick. It contains your whole book and works offline in any browser."
                     ]
                 }
@@ -54,7 +54,7 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({ settings, onClos
     ];
 
     return (
-        <Modal onClose={onClose} settings={settings} title="Novelos Quick Start Guide" className="max-w-4xl">
+        <Modal onClose={onClose} settings={settings} title="Novelis Quick Start Guide" className="max-w-4xl">
             <div className="space-y-8 py-2">
                 {guideContent.map((section, sIdx) => (
                     <div key={sIdx} className="space-y-6">
@@ -80,7 +80,7 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({ settings, onClos
                     <h3 className="font-bold text-lg">Need the full documentation?</h3>
                     <p className="text-sm opacity-80">For a deep dive into every feature, AI prompt engineering, and setup instructions, visit the comprehensive online manual.</p>
                     <a 
-                        href="https://www.thomascorfield.com/post/novelos-user-guide" 
+                        href="https://www.thomascorfield.com/post/novelis-user-guide" 
                         target="_blank" 
                         rel="noopener noreferrer"
                         className="inline-block px-6 py-2 rounded-lg font-bold text-white transition-transform active:scale-95"
@@ -91,7 +91,7 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({ settings, onClos
                 </div>
 
                 <div className="pt-8 text-center border-t opacity-40 text-xs" style={{ borderColor: settings.toolbarInputBorderColor }}>
-                    <p>Novelos v7.5.8 &mdash; Thomas Corfield</p>
+                    <p>Novelis v76.6 &mdash; Thomas Corfield</p>
                 </div>
             </div>
         </Modal>

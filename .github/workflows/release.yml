@@ -1,5 +1,5 @@
 
-name: Build and Release Novelos 7.5.8
+name: Build and Release Novelis 76.6
 
 on:
   push:

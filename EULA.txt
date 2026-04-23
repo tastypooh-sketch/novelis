@@ -1,9 +1,9 @@
 
-NOVELOS END USER LICENSE AGREEMENT (EULA)
+NOVELIS END USER LICENSE AGREEMENT (EULA)
 -----------------------------------------
 
 1. ACCEPTANCE
-By installing, accessing, or using Novelos (the "Software"), you agree to be bound by the terms of this Agreement. If you do not agree, do not install or use the Software.
+By installing, accessing, or using Novelis (the "Software"), you agree to be bound by the terms of this Agreement. If you do not agree, do not install or use the Software.
 
 2. ABSOLUTE LIMITATION OF LIABILITY
 The Software is provided "AS IS", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose and noninfringement. In no event shall the Software Developer, Authors, or Copyright Holders be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the Software or the use or other dealings in the Software.
@@ -18,7 +18,7 @@ The User acknowledges that the Software is a digital tool subject to unforeseen 
 USER IS SOLELY RESPONSIBLE FOR MAINTAINING SECONDARY AND TERTIARY BACKUPS OF ALL WORK EXTERNAL TO THE SOFTWARE'S ENVIRONMENT.
 
 4. AI-GENERATED CONTENT
-Novelos provides features powered by third-party Artificial Intelligence (Google Gemini). The Developer makes no guarantees regarding the accuracy, tone, or safety of AI outputs. All AI-generated suggestions are to be used at the User's own risk and discretion. User owns all AI-generated text produced via the Software but assumes all responsibility for its use.
+Novelis provides features powered by third-party Artificial Intelligence (Google Gemini). The Developer makes no guarantees regarding the accuracy, tone, or safety of AI outputs. All AI-generated suggestions are to be used at the User's own risk and discretion. User owns all AI-generated text produced via the Software but assumes all responsibility for its use.
 
 5. GOVERNING LAW
 This agreement is governed by the laws of the Developer's jurisdiction. Any legal disputes arising from Software use shall be handled exclusively within that jurisdiction.

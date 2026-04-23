@@ -1,6 +1,5 @@
-
 {
-  "name": "7.5.8 Novelos",
-  "description": "A 'Novel Operating System' featuring a horizontal 'infinite spread' editor with deep AI integration for pacing, character analysis, and structural plotting. Version 7.5.8 focus: Enhanced performance, GitHub automation, and final landscape UI refinements.",
+  "name": "76.6 Novelis Rebrand",
+  "description": "A \u0027Novel Operating System\u0027 featuring a horizontal \u0027infinite spread\u0027 editor. Fixed Nove.html standalone export crashes and updated UI text for blank exports.",
   "requestFramePermissions": []
 }

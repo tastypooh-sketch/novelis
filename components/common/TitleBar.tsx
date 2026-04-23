@@ -42,7 +42,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({ backgroundColor, textColor }
             }}
         >
             <div className="px-4 text-xs font-bold tracking-widest opacity-50">
-                Novelos
+                Novelis
             </div>
             <div className="flex h-full" style={{ ['WebkitAppRegion' as any]: 'no-drag' }}>
                 <button 

@@ -1,15 +1,15 @@
 
-# NOVELOS 
+# NOVELIS 
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Version](https://img.shields.io/badge/version-7.5.8-green.svg)
+![Version](https://img.shields.io/badge/version-76.6-green.svg)
 ![Status](https://img.shields.io/badge/status-stable-success.svg)
 
-**Novelos** redefines digital storytelling by fusing a distraction-free, horizontal "infinite spread" interface with a deeply integrated, context-aware AI engine. Unlike traditional corkboarding software where AI is merely an add-on, Novelos is architected from the ground up as a responsive "Novel Operating System." 
+**Novelis** redefines digital storytelling by fusing a distraction-free, horizontal "infinite spread" interface with a deeply integrated, context-aware AI engine. Unlike traditional corkboarding software where AI is merely an add-on, Novelis is architected from the ground up as a responsive "Novel Operating System." 
 
-The editor maximizes screen real estate, allowing text to flow naturally across a cinematic dual-pane view, while the underlying intelligence actively cross-links every element of your manuscript. As you draft, Novelos analyzes chapters to dynamically update character profiles, visualize pacing heatmaps, and detect plot holes in real-time. It bridges the gap between immersive writing and structural engineering, offering a brainstorming partner that understands the interconnected DNA of your story.
+The editor maximizes screen real estate, allowing text to flow naturally across a cinematic dual-pane view, while the underlying intelligence actively cross-links every element of your manuscript. As you draft, Novelis analyzes chapters to dynamically update character profiles, visualize pacing heatmaps, and detect plot holes in real-time. It bridges the gap between immersive writing and structural engineering, offering a brainstorming partner that understands the interconnected DNA of your story.
 
-**Note on AI Costs: Novelos uses a "Bring Your Own Key" model. Most authors stay entirely within Google's generous Free Tier, meaning you can likely write and analyze your entire novel for $0.00.**
+**Note on AI Costs: Novelis uses a "Bring Your Own Key" model. Most authors stay entirely within Google's generous Free Tier, meaning you can likely write and analyze your entire novel for $0.00.**
 
 Built with **React**, **Electron**, and **Google Gemini 2.5/3.0**.
 
@@ -18,7 +18,7 @@ Built with **React**, **Electron**, and **Google Gemini 2.5/3.0**.
 ## 🌟 Key Features
 
 ### 1. Hybrid Architecture
-*   **Novelos Desktop:** The full "Command Center" for outlining, world-building, and drafting.
+*   **Novelis Desktop:** The full "Command Center" for outlining, world-building, and drafting.
 *   **Nové (Portable):** Generates a single-file, offline HTML word processor (`Nové.html`) that contains your entire manuscript. Write on any device with a browser, then sync back to Desktop.
 
 ### 2. Manuscript Mode
@@ -46,8 +46,8 @@ Built with **React**, **Electron**, and **Google Gemini 2.5/3.0**.
 
 1.  **Clone the repository**
     ```bash
-    git clone https://github.com/yourusername/novelos.git
-    cd novelos
+    git clone https://github.com/yourusername/novelis.git
+    cd novelis
     ```
 
 2.  **Install dependencies**
@@ -84,7 +84,7 @@ Output files will be generated in the `dist-electron` folder.
 
 ## 🧠 AI Configuration
 
-Novelos utilizes the Google GenAI SDK. To use the AI features:
+Novelis utilizes the Google GenAI SDK. To use the AI features:
 1.  Launch the app.
 2.  Go to **Customize Toolbar** (Cog Icon).
 3.  Enter your Google Gemini API Key.

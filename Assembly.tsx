@@ -669,7 +669,7 @@ export const Assembly: React.FC<AssemblyProps> = ({ settings, onSettingsChange, 
                             onDeleteRequest={setDeleteChapterTarget} onSetChapters={(c) => dispatch({ type: 'SET_CHAPTERS', payload: c })} 
                             directoryHandle={directoryHandle} isLinkPanelOpen={assemblyState.isChapterLinkPanelOpen} 
                             onToggleLinkPanel={() => dispatch({ type: 'UPDATE_ASSEMBLY_VIEW_STATE', payload: { isChapterLinkPanelOpen: !assemblyState.isChapterLinkPanelOpen } })} 
-                            expandedChapterId={assemblyState.expandedChapterId} setExpandedCharacterId={(id) => dispatch({ type: 'UPDATE_ASSEMBLY_VIEW_STATE', payload: { expandedChapterId: id } })} 
+                            expandedChapterId={assemblyState.expandedChapterId} setExpandedChapterId={(id) => dispatch({ type: 'UPDATE_ASSEMBLY_VIEW_STATE', payload: { expandedChapterId: id } })} 
                             pacingAnalysis={assemblyState.pacingAnalysis} isGeneratingPacingAnalysis={assemblyState.isGeneratingPacingAnalysis}
                         />
                     )}

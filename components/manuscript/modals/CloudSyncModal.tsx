@@ -11,8 +11,8 @@ interface CloudSyncModalProps {
 }
 
 // Mock "Cloud" storage using localStorage for demonstration
-const STORAGE_KEY_BACKUP = 'novelos_cloud_backup_mock';
-const STORAGE_KEY_META = 'novelos_cloud_meta_mock';
+const STORAGE_KEY_BACKUP = 'novelis_cloud_backup_mock';
+const STORAGE_KEY_META = 'novelis_cloud_meta_mock';
 
 export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({ settings, onClose }) => {
     const currentState = useNovelState();
@@ -228,7 +228,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({ settings, onClos
                             </div>
                         )}
                         <p className="text-xs text-center mt-4 opacity-60">
-                            Backups are stored in a 'Novelos' folder in your Drive.
+                            Backups are stored in a 'Novelis' folder in your Drive.
                         </p>
                     </div>
                 </div>

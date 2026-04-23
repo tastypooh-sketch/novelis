@@ -83,9 +83,9 @@ ipcMain.handle('check-for-updates', async () => {
             method: 'GET',
             protocol: 'https:',
             hostname: 'api.github.com',
-            path: '/repos/tastypooh-sketch/novelos/releases/latest',
+            path: '/repos/tastypooh-sketch/novelis/releases/latest',
             headers: {
-                'User-Agent': 'Novelos-Desktop-App'
+                'User-Agent': 'Novelis-Desktop-App'
             }
         });
         
@@ -228,7 +228,7 @@ ipcMain.handle('activate-license', async (event, licenseKey) => {
             },
             body: JSON.stringify({
                 license_key: licenseKey,
-                instance_name: 'Novelos_Desktop',
+                instance_name: 'Novelis_Desktop',
             })
         });
 

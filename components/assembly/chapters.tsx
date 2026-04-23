@@ -106,21 +106,176 @@ const PacingHeatmap: React.FC<{ analysis: ChapterPacingInfo[]; settings: EditorS
     );
 };
 
-const ChapterThumbnail: React.FC<{
+interface ChapterTileProps {
     chapter: IChapter;
     allCharacters: ICharacter[];
+    snippets: ISnippet[];
     settings: EditorSettings;
+    isExpanded: boolean;
     isSelected: boolean;
     onSelect: (id: string, e: React.MouseEvent) => void;
     onToggleExpand: (id: string) => void;
+    onUpdate: (id: string, updates: Partial<IChapter>) => void;
+    onDeleteRequest: (chapter: IChapter) => void;
     draggableProps: any;
     isDragging: boolean;
     tileBackgroundStyle: TileBackgroundStyle;
-    onCharacterDragOver: (e: React.DragEvent<HTMLDivElement>) => void;
-    onCharacterDrop: (e: React.DragEvent<HTMLDivElement>) => void;
-}> = ({ chapter, allCharacters, settings, isSelected, onSelect, onToggleExpand, draggableProps, isDragging, tileBackgroundStyle, onCharacterDragOver, onCharacterDrop }) => {
+    scrollContainerRef: React.RefObject<HTMLDivElement>;
+}
+
+const ChapterTile: React.FC<ChapterTileProps> = React.memo(({
+    chapter, allCharacters, snippets, settings, isExpanded, isSelected, onSelect, onToggleExpand, onUpdate, onDeleteRequest, draggableProps, isDragging, tileBackgroundStyle, scrollContainerRef
+}) => {
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const { isGeneratingChapter, errorId, errorMessage, onGenerateChapterDetails, onUpdateChapterFromManuscript } = useAssemblyAI();
+    const isGenerating = isGeneratingChapter === chapter.id;
+
+    const [localTitle, setLocalTitle] = useState(chapter.title);
+    const [summary, setSummary] = useState(chapter.summary);
+    const [rawNotes, setRawNotes] = useState(chapter.rawNotes);
+    const [outline, setOutline] = useState(chapter.outline);
+    const [analysis, setAnalysis] = useState(chapter.analysis || '');
+
+    const [isEditingOutline, setIsEditingOutline] = useState(() => !String(chapter.outline || '').trim());
+    const [isEditingAnalysis, setIsEditingAnalysis] = useState(() => !String(chapter.analysis || '').trim());
+    const [isEditingTitle, setIsEditingTitle] = useState(false);
+    const [showUpdateConfirm, setShowUpdateConfirm] = useState(false);
+    const titleInputRef = useRef<HTMLTextAreaElement>(null);
+
+    const summaryRef = useRef<HTMLTextAreaElement>(null);
+    const rawNotesRef = useRef<HTMLTextAreaElement>(null);
+    const outlineRef = useRef<HTMLTextAreaElement>(null);
+    const analysisRef = useRef<HTMLTextAreaElement>(null);
+
+    useAutosizeTextArea(summaryRef, summary, isExpanded, scrollContainerRef, { isAnimated: true });
+    useAutosizeTextArea(rawNotesRef, rawNotes, isExpanded, scrollContainerRef, { isAnimated: true });
+    useAutosizeTextArea(outlineRef, outline, isExpanded, scrollContainerRef, { isAnimated: true });
+    useAutosizeTextArea(analysisRef, analysis, isExpanded, scrollContainerRef, { isAnimated: true });
+    useAutosizeTextArea(titleInputRef, localTitle, isEditingTitle, scrollContainerRef, { isAnimated: false });
+
+    const debouncedUpdate = useDebouncedCallback((updates: Partial<IChapter>) => {
+        onUpdate(chapter.id, updates);
+    }, 500);
+
+    useEffect(() => {
+        setLocalTitle(chapter.title);
+        setSummary(chapter.summary);
+        setRawNotes(chapter.rawNotes);
+        setOutline(chapter.outline);
+        setAnalysis(chapter.analysis || '');
+
+        if (!String(chapter.outline || '').trim()) {
+            setIsEditingOutline(true);
+        }
+        if (!String(chapter.analysis || '').trim()) {
+            setIsEditingAnalysis(true);
+        }
+    }, [chapter]);
+
+    useEffect(() => {
+        if (isEditingTitle && titleInputRef.current) {
+            titleInputRef.current.focus();
+            titleInputRef.current.select();
+        }
+    }, [isEditingTitle]);
+
+    const handleTitleUpdate = () => {
+        setIsEditingTitle(false);
+        const trimmedTitle = localTitle.trim();
+        if (trimmedTitle && trimmedTitle !== chapter.title) {
+            onUpdate(chapter.id, { title: trimmedTitle });
+        } else if (!trimmedTitle) {
+            setLocalTitle(chapter.title);
+        }
+    };
+
+    const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            e.currentTarget.blur();
+        }
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            setLocalTitle(chapter.title);
+            setIsEditingTitle(false);
+        }
+    };
+
+    const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = async (loadEvent) => {
+                const photoUrl = loadEvent.target?.result as string;
+                try {
+                    const imageColor = await getImageColor(photoUrl);
+                    onUpdate(chapter.id, { photo: photoUrl, imageColor: imageColor, isPhotoLocked: true });
+                } catch (err) {
+                    onUpdate(chapter.id, { photo: photoUrl, isPhotoLocked: true });
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+    
+    const handleGenerateDetails = () => {
+        if (!rawNotes.trim()) return;
+        onGenerateChapterDetails(chapter, rawNotes);
+        setIsEditingOutline(false);
+        setIsEditingAnalysis(false);
+    }
+    
+    const handleUpdateFromManuscript = () => {
+        onUpdateChapterFromManuscript(chapter);
+        setShowUpdateConfirm(false);
+    };
+
+    const handleSendBriefToManuscript = () => {
+        const briefingHtml = generateBriefingHtml(chapter, allCharacters, snippets);
+        const existingContent = chapter.content || '<div><br></div>';
+        if (existingContent.includes('[ CHAPTER BRIEFING ]')) {
+             if (!confirm("This chapter already contains a briefing. Add another one?")) return;
+        }
+        onUpdate(chapter.id, { content: briefingHtml + existingContent });
+    };
+
+    const handleRevertDetails = () => {
+        if (chapter.previousDetails) {
+            onUpdate(chapter.id, { ...chapter.previousDetails, previousDetails: undefined });
+        }
+    };
+
+    const handleToggleLock = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        onUpdate(chapter.id, { isPhotoLocked: !chapter.isPhotoLocked });
+    };
+
+    const handleCycleAccentStyle = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        const styles: ('left-top-ingress' | 'outline' | 'corner-diagonal')[] = ['left-top-ingress', 'outline', 'corner-diagonal'];
+        const currentStyle = chapter.accentStyle || 'left-top-ingress';
+        const currentIndex = styles.indexOf(currentStyle);
+        const nextStyle = styles[(currentIndex + 1) % styles.length];
+        onUpdate(chapter.id, { accentStyle: nextStyle });
+    };
+
+    const tileBorderColor = chapter.imageColor || settings.toolbarInputBorderColor;
     const isDarkMode = !isColorLight(settings.textColor);
-    const [isCharDragOver, setIsCharDragOver] = useState(false);
+    const secondaryButtonBg = shadeColor(settings.toolbarButtonBg || '#374151', isDarkMode ? 10 : -10);
+    const secondaryButtonHoverBg = shadeColor(settings.toolbarButtonBg || '#374151', isDarkMode ? 20 : -10);
+    
+    const linkedCharacters = useMemo(() => {
+        return (chapter.characterIds || [])
+            .map(id => allCharacters.find(c => c.id === id))
+            .filter((c): c is ICharacter => !!c);
+    }, [chapter.characterIds, allCharacters]);
+
+    const linkedSnippets = useMemo(() => {
+        return (chapter.linkedSnippetIds || [])
+            .map(id => snippets.find(s => s.id === id))
+            .filter((s): s is ISnippet => !!s);
+    }, [chapter.linkedSnippetIds, snippets]);
+    
     const accentColor = chapter.imageColor || settings.accentColor;
 
     const backgroundStyle = useMemo(() => {
@@ -132,24 +287,282 @@ const ChapterThumbnail: React.FC<{
             default: return { backgroundColor: baseColor };
         }
     }, [tileBackgroundStyle, settings.toolbarButtonBg, isDarkMode]);
-    
-    const linkedCharacters = useMemo(() => {
-        return (chapter.characterIds || []).map(id => allCharacters.find(c => c.id === id)).filter((c): c is ICharacter => !!c);
-    }, [chapter.characterIds, allCharacters]);
 
+    if (isExpanded) {
+        return (
+            <div 
+                {...draggableProps}
+                className={`relative transition-all duration-500 ease-[cubic-bezier(0.2,0,0,1)] col-span-full ${isDragging ? 'opacity-20 grayscale scale-95 blur-[1px]' : 'opacity-100 scale-100'}`}
+            >
+                <input type="file" accept="image/png, image/jpeg" ref={fileInputRef} onChange={handlePhotoUpload} className="hidden" />
+                <div
+                    onClick={(e) => onSelect(chapter.id, e)}
+                    className="relative rounded-lg shadow-md transition-shadow duration-300 ease-in-out z-10 flex flex-col border-4"
+                    style={{
+                        ...backgroundStyle,
+                        color: settings.textColor,
+                        borderColor: isSelected ? settings.accentColor : (chapter.accentStyle === 'outline' ? accentColor : 'transparent'),
+                    }}
+                >
+                    {(chapter.accentStyle === 'left-top-ingress' || !chapter.accentStyle) && (
+                        <div className="absolute top-0 left-0 w-[6px] h-1/3" style={{backgroundColor: accentColor}}></div>
+                    )}
+                    {chapter.accentStyle === 'corner-diagonal' && (
+                        <div className="absolute bottom-0 right-0" style={{ width: 0, height: 0, borderBottom: `48px solid ${accentColor}`, borderLeft: '48px solid transparent', }}></div>
+                    )}
+
+                    {/* Header - Mirroring Character Aesthetics */}
+                    <div className="flex w-full items-start gap-6 p-6">
+                        <div className="min-w-0 flex-grow">
+                            <div className="flex items-center gap-3 mb-2">
+                                <span className="text-4xl font-black opacity-30">{chapter.chapterNumber}.</span>
+                                {isEditingTitle ? (
+                                    <textarea
+                                        ref={titleInputRef} value={localTitle} onChange={e => setLocalTitle(e.target.value)}
+                                        onBlur={handleTitleUpdate} onKeyDown={handleTitleKeyDown} onClick={e => e.stopPropagation()}
+                                        className="font-bold text-3xl w-full p-0 border-none resize-none outline-none block bg-transparent"
+                                        style={{ color: settings.textColor, lineHeight: '1.2' }} rows={1}
+                                    />
+                                ) : (
+                                    <h3 onClick={(e) => { e.stopPropagation(); setIsEditingTitle(true); }} className="font-bold text-3xl cursor-pointer truncate" title={chapter.title}>
+                                        {chapter.title}
+                                    </h3>
+                                )}
+                            </div>
+                            {chapter.summary && <p className="text-lg mt-1 italic opacity-90 line-clamp-2">"{chapter.summary}"</p>}
+                            {chapter.keywords && chapter.keywords.length > 0 && (
+                                <div className="flex flex-wrap gap-2 mt-3">
+                                    {chapter.keywords.map(kw => (
+                                        <span key={kw} className="px-2 py-1 rounded text-xs" style={{backgroundColor: shadeColor(settings.toolbarButtonBg || '#374151', 10), color: `${settings.textColor}B3`}}>{kw}</span>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        <div className="relative w-36 h-36 flex-shrink-0 z-20">
+                            <div 
+                                className="absolute top-0 right-0 w-36 h-36 rounded-xl shadow-sm transition-all duration-300 ease-in-out origin-top-right hover:scale-[2.0] hover:z-50 hover:shadow-2xl cursor-pointer group"
+                                onClick={() => fileInputRef.current?.click()}
+                                style={{ backgroundColor: shadeColor(settings.toolbarButtonBg || '#374151', -5) }}
+                            >
+                                <div className="w-full h-full rounded-xl overflow-hidden border-2" style={{ borderColor: tileBorderColor }}>
+                                     {chapter.photo ? (
+                                        <img src={chapter.photo} alt="" className="w-full h-full object-cover" />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center bg-black/10">
+                                            <BookOpenIcon className="h-1/2 w-1/2 opacity-30"/>
+                                        </div>
+                                    )}
+                                </div>
+                                <div 
+                                    className="absolute top-2 right-2 p-1.5 rounded-full transition-all duration-200 z-20 shadow-md"
+                                    style={{ backgroundColor: chapter.isPhotoLocked ? settings.accentColor : secondaryButtonBg, color: chapter.isPhotoLocked ? 'white' : settings.toolbarText }}
+                                    onClick={handleToggleLock}
+                                    title={chapter.isPhotoLocked ? "Unlock photo" : "Lock photo"}
+                                >
+                                    {chapter.isPhotoLocked ? <LockClosedIconOutline className="h-3 w-3" /> : <LockOpenIconOutline className="h-3 w-3" />}
+                                </div>
+                                <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-2 pt-6 flex justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-b-xl">
+                                     <div className="flex items-center gap-1 text-white text-[10px] font-medium">
+                                        <CameraIcon className="h-3 w-3"/>
+                                        <span>Update Scene</span>
+                                     </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="p-6 border-t space-y-8" style={{ borderColor: `${tileBorderColor}80`}}>
+                        {linkedCharacters.length > 0 && (
+                            <div>
+                                <label className="block text-sm font-semibold mb-3 opacity-80 uppercase tracking-wider">Characters in Scene</label>
+                                <div className="flex flex-wrap gap-3">
+                                    {linkedCharacters.map(char => (
+                                        <div key={char.id} className="flex items-center gap-3 p-2 pr-4 rounded-lg group" style={{ backgroundColor: settings.backgroundColor }}>
+                                            <div className="h-10 w-10 rounded-full bg-cover bg-center flex-shrink-0 border-2" style={{ backgroundImage: char.photo ? `url(${char.photo})` : undefined, backgroundColor: char.imageColor, borderColor: char.imageColor || 'transparent' }}>
+                                               {!char.photo && <UserCircleIcon className="h-full w-full opacity-50"/>}
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="font-semibold text-sm truncate">{char.name}</p>
+                                                <p className="text-[10px] opacity-60 truncate">{char.tagline}</p>
+                                            </div>
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); onUpdate(chapter.id, { characterIds: (chapter.characterIds || []).filter(id => id !== char.id) }); }}
+                                                className="ml-2 p-1 rounded-full bg-red-500/20 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                            >
+                                                <XIcon className="h-3 w-3" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div className="space-y-6">
+                                <div>
+                                    <label className="block text-sm font-semibold mb-2 opacity-80 uppercase tracking-wider">Summary</label>
+                                    <textarea
+                                        ref={summaryRef} value={summary}
+                                        onChange={e => { setSummary(e.target.value); debouncedUpdate({ summary: e.target.value }); }}
+                                        className="w-full p-3 rounded-lg border resize-none overflow-hidden"
+                                        style={{ borderColor: tileBorderColor, color: settings.textColor, backgroundColor: settings.backgroundColor }}
+                                        rows={3}
+                                    />
+                                </div>
+                                <div>
+                                    <div className="flex justify-between items-center mb-2">
+                                        <label className="block text-sm font-semibold opacity-80 uppercase tracking-wider">Beat Outline</label>
+                                        <button onClick={() => setIsEditingOutline(p => !p)} className="text-[10px] px-2 py-1 rounded-md uppercase font-bold tracking-tighter" style={{ backgroundColor: settings.toolbarButtonBg, color: settings.toolbarText }}>
+                                            {isEditingOutline ? 'Preview' : 'Edit'}
+                                        </button>
+                                    </div>
+                                    {isEditingOutline ? (
+                                        <textarea
+                                            ref={outlineRef} value={outline}
+                                            onChange={e => { setOutline(e.target.value); debouncedUpdate({ outline: e.target.value }); }}
+                                            className="w-full p-3 rounded-lg border resize-none overflow-hidden font-mono text-sm"
+                                            style={{ borderColor: tileBorderColor, color: settings.textColor, backgroundColor: settings.backgroundColor }}
+                                            rows={8}
+                                        />
+                                    ) : (
+                                        <div className="w-full p-4 rounded-lg border max-h-96 overflow-y-auto" style={{ borderColor: tileBorderColor, color: settings.textColor, backgroundColor: settings.backgroundColor }}>
+                                            <MarkdownRenderer source={outline} settings={settings} />
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="space-y-6">
+                                <div>
+                                    <div className="flex justify-between items-center mb-2">
+                                        <label className="block text-sm font-semibold opacity-80 uppercase tracking-wider">Story Analysis</label>
+                                        <button onClick={() => setIsEditingAnalysis(p => !p)} className="text-[10px] px-2 py-1 rounded-md uppercase font-bold tracking-tighter" style={{ backgroundColor: settings.toolbarButtonBg, color: settings.toolbarText }}>
+                                            {isEditingAnalysis ? 'Preview' : 'Edit'}
+                                        </button>
+                                    </div>
+                                    {isEditingAnalysis ? (
+                                        <textarea
+                                            ref={analysisRef} value={analysis}
+                                            onChange={e => { setAnalysis(e.target.value); debouncedUpdate({ analysis: e.target.value }); }}
+                                            className="w-full p-3 rounded-lg border resize-none overflow-hidden"
+                                            style={{ borderColor: tileBorderColor, color: settings.textColor, backgroundColor: settings.backgroundColor }}
+                                            rows={8}
+                                            placeholder="AI-generated analysis of conflict, stakes, etc."
+                                        />
+                                    ) : (
+                                        <div className="w-full p-4 rounded-lg border max-h-96 overflow-y-auto" style={{ borderColor: tileBorderColor, color: settings.textColor, backgroundColor: settings.backgroundColor }}>
+                                            <MarkdownRenderer source={analysis} settings={settings} />
+                                        </div>
+                                    )}
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold mb-2 opacity-80 uppercase tracking-wider">Rough Notes</label>
+                                    <textarea
+                                        ref={rawNotesRef} value={rawNotes}
+                                        onChange={e => { setRawNotes(e.target.value); debouncedUpdate({ rawNotes: e.target.value }); }}
+                                        className="w-full p-3 rounded-lg border resize-none overflow-hidden"
+                                        style={{ borderColor: tileBorderColor, color: settings.textColor, backgroundColor: settings.backgroundColor }}
+                                        rows={6}
+                                        placeholder="Jot down plot points, scene ideas, dialogue snippets, etc."
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {linkedSnippets.length > 0 && (
+                            <div>
+                                <label className="block text-sm font-semibold mb-3 opacity-80 uppercase tracking-wider">Linked Snippets</label>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    {linkedSnippets.map(snippet => (
+                                        <div key={snippet.id} className="p-4 rounded-xl flex justify-between items-start gap-4 shadow-sm border border-white/5" style={{ backgroundColor: settings.backgroundColor }}>
+                                            <p className="text-sm opacity-90 whitespace-pre-wrap flex-grow leading-relaxed">{snippet.cleanedText}</p>
+                                            <button
+                                                onClick={() => {
+                                                    onUpdate(chapter.id, { linkedSnippetIds: (chapter.linkedSnippetIds || []).filter(id => id !== snippet.id) });
+                                                    dispatch({ type: 'UPDATE_SNIPPET', payload: { id: snippet.id, updates: { isUsed: false } } });
+                                                }}
+                                                className="p-2 rounded-full hover:bg-red-500/20 text-red-500 transition-colors"
+                                                title="Unlink snippet"
+                                            >
+                                                <RevertIcon className="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <footer className="p-4 border-t flex flex-wrap justify-between items-center gap-4" style={{borderColor: `${tileBorderColor}80`}}>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={handleGenerateDetails}
+                                disabled={isGenerating}
+                                className="px-4 py-2 rounded-lg text-sm font-bold flex items-center text-white disabled:opacity-50 shadow-lg transition-transform active:scale-95"
+                                style={{ backgroundColor: settings.accentColor }}
+                            >
+                                <SparklesIconOutline className="h-5 w-5 mr-2"/>
+                                {isGenerating ? 'Generating...' : 'Generate from Notes'}
+                            </button>
+                            {chapter.previousDetails ? (
+                                <button onClick={handleRevertDetails} className="px-4 py-2 rounded-lg text-sm font-bold flex items-center" style={{ backgroundColor: secondaryButtonBg }}>
+                                    <RevertIcon className="h-4 w-4 mr-2" /> Revert
+                                </button>
+                            ) : (
+                                <div className="flex items-center gap-2 relative">
+                                    <button
+                                        onMouseEnter={() => setShowUpdateConfirm(true)}
+                                        onMouseLeave={() => setShowUpdateConfirm(false)}
+                                        className="px-4 py-2 rounded-lg text-sm font-bold flex items-center"
+                                        style={{ backgroundColor: secondaryButtonBg }}
+                                    >
+                                        <BrushIcon className="h-4 w-4 mr-2" /> Analyze Manuscript
+                                    </button>
+                                    <button
+                                        onClick={handleSendBriefToManuscript}
+                                        className="px-4 py-2 rounded-lg text-sm font-bold flex items-center"
+                                        style={{ backgroundColor: secondaryButtonBg }}
+                                        title="Sends the chapter summary, characters, and snippets to the manuscript editor as a prompt."
+                                    >
+                                        <PaperAirplaneIcon className="h-4 w-4 mr-2" /> Send Brief
+                                    </button>
+                                    {showUpdateConfirm && (
+                                        <div onMouseEnter={() => setShowUpdateConfirm(true)} onMouseLeave={() => setShowUpdateConfirm(false)} className="absolute bottom-full left-0 mb-2 w-72 p-4 rounded-xl shadow-2xl text-xs z-50 border border-white/10" style={{backgroundColor: settings.dropdownBg}}>
+                                            <p className="opacity-80 leading-relaxed">This will analyze the written chapter text to update this chapter's outline and analysis. This will overwrite existing data.</p>
+                                            <button onClick={handleUpdateFromManuscript} className="w-full mt-3 py-2 rounded-lg text-white font-bold shadow-md" style={{backgroundColor: settings.accentColor}}>Confirm Update</button>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                             <button onClick={handleCycleAccentStyle} className="p-2.5 rounded-lg transition-colors" style={{ backgroundColor: secondaryButtonBg, color: settings.toolbarText }} title="Cycle accent style">
+                                <BrushIcon className="h-5 w-5" />
+                            </button>
+                             <button onClick={() => onToggleExpand(chapter.id)} className="p-2.5 rounded-lg transition-colors" style={{ backgroundColor: secondaryButtonBg, color: settings.toolbarText }} title="Collapse">
+                                <ChevronUpIcon className="h-5 w-5" />
+                            </button>
+                            <button onClick={() => onDeleteRequest(chapter)} className="p-2.5 rounded-lg text-white transition-colors" style={{ backgroundColor: settings.dangerColor }} title="Delete chapter">
+                                <TrashIconOutline className="h-5 w-5" />
+                            </button>
+                        </div>
+                    </footer>
+                    {errorId === chapter.id && <AIError message={errorMessage} className="mx-4 mb-2" />}
+                </div>
+            </div>
+        );
+    }
+
+    // Collapsed View (Thumbnail)
     return (
         <div
             onClick={(e) => onSelect(chapter.id, e)}
             {...draggableProps}
-            onDragOver={(e) => { setIsCharDragOver(true); onCharacterDragOver(e); }}
-            onDragLeave={() => setIsCharDragOver(false)}
-            onDrop={(e) => { setIsCharDragOver(false); onCharacterDrop(e); }}
-            className={`relative aspect-[3/4] flex flex-col rounded-lg shadow-lg transition-all duration-200 border-4 overflow-hidden ${isDragging ? 'opacity-20 scale-90' : 'opacity-100 scale-100'} ${isCharDragOver ? 'ring-4 ring-offset-2' : ''}`}
+            className={`relative aspect-[3/4] flex flex-col rounded-lg shadow-lg transition-all duration-200 border-4 overflow-hidden ${isDragging ? 'opacity-20 scale-90' : 'opacity-100 scale-100'}`}
             style={{
-                borderColor: isCharDragOver ? settings.accentColor : (isSelected ? settings.accentColor : (chapter.accentStyle === 'outline' ? accentColor : 'transparent')),
+                borderColor: isSelected ? settings.accentColor : (chapter.accentStyle === 'outline' ? accentColor : 'transparent'),
                 color: settings.textColor,
                 ...backgroundStyle,
-                ['--tw-ring-color' as any]: settings.accentColor,
                 cursor: 'grab'
             }}
         >
@@ -196,7 +609,7 @@ const ChapterThumbnail: React.FC<{
             </button>
         </div>
     );
-};
+});
 
 interface ChaptersPanelProps {
     chapters: IChapter[];
@@ -213,16 +626,15 @@ interface ChaptersPanelProps {
     isLinkPanelOpen: boolean;
     onToggleLinkPanel: () => void;
     expandedChapterId: string | null;
-    setExpandedCharacterId: (id: string | null) => void;
+    setExpandedChapterId: (id: string | null) => void;
     pacingAnalysis: ChapterPacingInfo[] | null;
     isGeneratingPacingAnalysis: boolean;
 }
 
 export const ChaptersPanel: React.FC<ChaptersPanelProps> = ({ 
-    chapters, characters, snippets, settings, tileBackgroundStyle, selectedIds, onSelect, onUpdateChapter, onDeleteRequest, onSetChapters, directoryHandle, isLinkPanelOpen, onToggleLinkPanel, expandedChapterId, setExpandedCharacterId,
+    chapters, characters, snippets, settings, tileBackgroundStyle, selectedIds, onSelect, onUpdateChapter, onDeleteRequest, onSetChapters, directoryHandle, isLinkPanelOpen, onToggleLinkPanel, expandedChapterId, setExpandedChapterId,
     pacingAnalysis, isGeneratingPacingAnalysis
 }) => {
-    // stagedChapters is our "rapid sort" in-memory buffer
     const [stagedChapters, setStagedChapters] = useState<IChapter[]>(chapters);
     const [isDirty, setIsDirty] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
@@ -233,7 +645,6 @@ export const ChaptersPanel: React.FC<ChaptersPanelProps> = ({
     const dispatch = useNovelDispatch();
     const { onGeneratePacingAnalysis, errorMessage, onSetError } = useAssemblyAI();
 
-    // Reset staged state if the global chapters change from outside (e.g. deletion, import)
     useEffect(() => {
         if (!isDirty) {
             setStagedChapters(chapters);
@@ -246,13 +657,10 @@ export const ChaptersPanel: React.FC<ChaptersPanelProps> = ({
 
         setIsSyncing(true);
         const renumbered = chaptersToCommit.map((ch, i) => ({ ...ch, chapterNumber: i + 1 }));
-        
-        // Update global state immediately
         onSetChapters(renumbered);
         
         if (directoryHandle) {
             try {
-                // Perform robust renames
                 for (const ch of renumbered) {
                     const oldCh = chapters.find(orig => orig.id === ch.id);
                     if (oldCh && oldCh.chapterNumber !== ch.chapterNumber) {
@@ -271,26 +679,26 @@ export const ChaptersPanel: React.FC<ChaptersPanelProps> = ({
                 }
             } catch (err) { console.error("File sync failed", err); }
         }
-        
         setIsDirty(false);
         setIsSyncing(false);
     }, [stagedChapters, isDirty, onSetChapters, directoryHandle, chapters]);
 
-    // AUTO-SYNC ON UNMOUNT (Leaves the Chapters tab)
-    useEffect(() => {
-        return () => {
-            // We use a ref-like logic inside a cleanup, but since state might be stale
-            // we rely on the fact that this tab is unmounting and the parent's activePanel changed.
-            // This is handled by calling commit in a stable way.
-        };
-    }, []);
+    const handleToggleExpand = useCallback((id: string) => {
+        const newExpandedId = expandedChapterId === id ? null : id;
+        setExpandedChapterId(newExpandedId);
+        if (newExpandedId) {
+            setTimeout(() => {
+                const tile = document.querySelector(`[data-chapter-id="${id}"]`);
+                if (tile) tile.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100);
+        }
+    }, [expandedChapterId, setExpandedChapterId]);
 
     const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
         const id = e.currentTarget.dataset.chapterId;
         if (!id) return;
         const idsToDrag = selectedIds.has(id) ? Array.from(selectedIds) : [id];
         setDragState({ draggedIds: idsToDrag, overId: id });
-        
         const ghost = createDragGhost(idsToDrag.length, settings); 
         document.body.appendChild(ghost); 
         e.dataTransfer.setDragImage(ghost, 20, 20); 
@@ -309,7 +717,6 @@ export const ChaptersPanel: React.FC<ChaptersPanelProps> = ({
         
         if (overAct !== targetAct) setOverAct(targetAct);
 
-        // UI-ONLY REORDERING (Lightning Fast)
         setStagedChapters(current => {
             const itemsToMove = current.filter(ch => draggedIds.includes(ch.id));
             const remaining = current.filter(ch => !draggedIds.includes(ch.id));
@@ -393,19 +800,22 @@ export const ChaptersPanel: React.FC<ChaptersPanelProps> = ({
                                     }}
                                 >
                                     {acts[actNum].map(ch => (
-                                        <ChapterThumbnail 
+                                        <ChapterTile 
                                             key={ch.id} 
                                             chapter={ch} 
                                             allCharacters={characters} 
+                                            snippets={snippets}
                                             settings={settings} 
+                                            isExpanded={expandedChapterId === ch.id}
                                             isSelected={selectedIds.has(ch.id)} 
                                             onSelect={onSelect} 
-                                            onToggleExpand={setExpandedCharacterId} 
+                                            onToggleExpand={handleToggleExpand} 
+                                            onUpdate={onUpdateChapter}
+                                            onDeleteRequest={onDeleteRequest}
                                             isDragging={dragState.draggedIds?.includes(ch.id) ?? false} 
                                             draggableProps={{ draggable: true, onDragStart: handleDragStart, 'data-chapter-id': ch.id }} 
                                             tileBackgroundStyle={tileBackgroundStyle} 
-                                            onCharacterDragOver={() => {}} 
-                                            onCharacterDrop={() => {}} 
+                                            scrollContainerRef={scrollRef}
                                         />
                                     ))}
                                     {acts[actNum].length === 0 && (
