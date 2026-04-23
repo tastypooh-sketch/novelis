@@ -6,7 +6,7 @@
   "main": "electron/main.js",
   "repository": {
     "type": "git",
-    "url": "https://github.com/tastypooh-sketch/novelis"
+    "url": "https://github.com/tastypooh-sketch/novelos"
   },
   "scripts": {
     "dev": "vite",
@@ -58,7 +58,7 @@
       {
         "provider": "github",
         "owner": "tastypooh-sketch",
-        "repo": "novelis"
+        "repo": "novelos"
       }
     ],
     "directories": {
