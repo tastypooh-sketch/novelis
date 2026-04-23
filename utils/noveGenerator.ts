@@ -590,7 +590,7 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
                             </div>
 
                             <div className="pt-10 mt-10 border-t text-center opacity-40 text-xs" style={{borderColor: settings.toolbarInputBorderColor}}>
-                                <p>Nové v76.6 Portable &mdash; Part of the Novelis Ecosystem</p>
+                                <p>Nové v76.8.0 Portable &mdash; Part of the Novelis Ecosystem</p>
                             </div>
                         </div>
                     </div>

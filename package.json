@@ -1,6 +1,7 @@
+
 {
   "name": "novelis-desktop",
-  "version": "76.6",
+  "version": "76.8.0",
   "description": "Novelis Desktop App",
   "main": "electron/main.js",
   "repository": {
@@ -42,12 +43,12 @@
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.19",
     "concurrently": "^8.2.2",
-    "electron": "^41.3.0",
-    "electron-builder": "^26.8.1",
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3",
     "postcss": "^8.4.38",
     "tailwindcss": "^3.4.4",
     "typescript": "^5.5.3",
-    "vite": "^8.0.10",
+    "vite": "^5.3.1",
     "wait-on": "^7.2.0"
   },
   "build": {
