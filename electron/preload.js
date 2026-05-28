@@ -16,6 +16,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Rename for brand consistency
   importNoveFile: () => ipcRenderer.invoke('open-file-dialog'),
 
+  // Version History additions
+  writeHistoryVersion: (folderPath, fileName, content) => ipcRenderer.invoke('write-history-version', folderPath, fileName, content),
+  readHistoryList: (folderPath, prefix) => ipcRenderer.invoke('read-history-list', folderPath, prefix),
+  readHistoryFile: (folderPath, fileName) => ipcRenderer.invoke('read-history-file', folderPath, fileName),
+
   // Version Check
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
 

@@ -13,7 +13,7 @@ import { TitleBar } from './components/common/TitleBar';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { CommandPalette } from './components/common/CommandPalette';
 import { EULAModal } from './components/common/EULAModal';
-import { createProjectZip, generateTimestampedName, parseTimestampFromFilename, parseNoveSync } from './utils/manuscriptUtils';
+import { createProjectZip, generateTimestampedName, parseTimestampFromFilename, parseNoveSync, generateInitialChapterRtf } from './utils/manuscriptUtils';
 
 type AppMode = 'manuscript' | 'assembly';
 
@@ -93,11 +93,22 @@ const GlobalStyles: React.FC<{ settings: EditorSettings }> = ({ settings }) => (
       /* --- End of FIX --- */
       
       @keyframes flash-green-glow {
-        0% { filter: drop-shadow(0 0 6px #4ade80) brightness(1.1); }
-        100% { filter: none; }
+        0% { 
+            filter: drop-shadow(0 0 12px #4ade80) brightness(1.3); 
+            transform: scale(1.05);
+        }
+        50% {
+            filter: drop-shadow(0 0 20px #4ade80) brightness(1.5);
+            transform: scale(1.1);
+        }
+        100% { 
+            filter: none;
+            transform: scale(1);
+        }
       }
       .save-flash {
-        animation: flash-green-glow 1.5s ease-out forwards;
+        animation: flash-green-glow 0.8s ease-in-out forwards;
+        z-index: 50;
       }
       
       /* --- ADDED for new Character Tile design --- */
@@ -452,7 +463,7 @@ const App: React.FC = () => {
                                         // @ts-ignore
                                         await window.electronAPI.writeZipToFolder(lastPath, portableFile.name, portableFile.content);
                                         // 2. Load it
-                                        const parsed = await parseNoveSync(new File([portableFile.content], portableFile.name));
+                                        const parsed = await parseNoveSync(new File([portableFile.content as any], portableFile.name));
                                         if (parsed && parsed.state) {
                                             dispatch({ type: 'LOAD_PROJECT', payload: parsed.state });
                                             if (parsed.settings) setSettings(prev => ({...prev, ...parsed.settings}));
@@ -480,7 +491,7 @@ const App: React.FC = () => {
                         // @ts-ignore
                         const latestZip = await window.electronAPI.scanForLatestZip(lastPath);
                         if (latestZip) {
-                            const parsed = await parseNoveSync(new File([latestZip.content], latestZip.name));
+                            const parsed = await parseNoveSync(new File([latestZip.content as any], latestZip.name));
                             if (parsed && parsed.state) {
                                 dispatch({ type: 'LOAD_PROJECT', payload: parsed.state });
                                 if (parsed.settings) setSettings(prev => ({...prev, ...parsed.settings}));
@@ -502,12 +513,27 @@ const App: React.FC = () => {
     }, []);
 
     // --- BULLETPROOF SAVE LOGIC ---
-    const handleSaveToFolder = useCallback(async (): Promise<boolean> => {
+    const handleSaveToFolder = useCallback(async (forceNewFolder: boolean = false): Promise<boolean> => {
+        const generateChapterVersionFileName = (chapter: IChapter): string => {
+            const rawTitle = chapter.title || 'Untitled';
+            const cleanTitle = rawTitle.replace(/[^a-z0-9]/gi, '_').substring(0, 30);
+            const now = new Date();
+            const yyyy = now.getFullYear();
+            const mm = String(now.getMonth() + 1).padStart(2, '0');
+            const dd = String(now.getDate()).padStart(2, '0');
+            const hh = String(now.getHours()).padStart(2, '0');
+            const min = String(now.getMinutes()).padStart(2, '0');
+            const ss = String(now.getSeconds()).padStart(2, '0');
+            return `${rawTitle}-${chapter.chapterNumber}_${yyyy}-${mm}-${dd}_${hh}-${min}-${ss}.rtf`;
+        };
+
+        const chapters = novelState.chapters || [];
+
         // @ts-ignore
         if (window.electronAPI) {
-            let targetPath = projectPath;
+            let targetPath = forceNewFolder ? null : projectPath;
             
-            // 1. Initial Save: Prompt for Folder
+            // 1. Initial Save or Force New Folder: Prompt for Folder
             if (!targetPath) {
                 // @ts-ignore
                 targetPath = await window.electronAPI.selectDirectory();
@@ -536,6 +562,19 @@ const App: React.FC = () => {
                 const success = await window.electronAPI.writeZipToFolder(targetPath, fileName, buffer);
                 
                 if (success) {
+                    // 4. Save Version History for active chapter in Electron
+                    const activeChapter = chapters.find(c => c.id === activeChapterId) || chapters[0];
+                    if (activeChapter) {
+                        const rtfContent = generateInitialChapterRtf(activeChapter);
+                        const historyFileName = generateChapterVersionFileName(activeChapter);
+                        try {
+                            // @ts-ignore
+                            await window.electronAPI.writeHistoryVersion(targetPath, historyFileName, rtfContent);
+                        } catch (err) {
+                            console.warn("Could not save to history subfolder in Electron:", err);
+                        }
+                    }
+
                     setIsSavingVisual(true);
                     setTimeout(() => setIsSavingVisual(false), 1500);
                     return true;
@@ -546,11 +585,65 @@ const App: React.FC = () => {
             } else {
                 return false; 
             }
+        } else if ('showDirectoryPicker' in window) {
+            try {
+                let dirHandle = forceNewFolder ? null : directoryHandle;
+                if (!dirHandle) {
+                    // @ts-ignore
+                    dirHandle = await window.showDirectoryPicker();
+                    if (dirHandle) {
+                        setDirectoryHandle(dirHandle);
+                        setProjectName(dirHandle.name);
+                        localStorage.setItem('novelis_last_project_name', dirHandle.name);
+                    } else {
+                        return false; // Cancelled
+                    }
+                }
+
+                if (dirHandle) {
+                    // 1. Generate ZIP of whole project
+                    const blob = await createProjectZip(novelState, settings);
+                    const fileName = generateTimestampedName(projectName);
+                    
+                    // Write whole ZIP
+                    const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
+                    const writable = await fileHandle.createWritable();
+                    await writable.write(blob);
+                    await writable.close();
+
+                    // 2. Save active chapter's RTF as a history file
+                    const activeChapter = chapters.find(c => c.id === activeChapterId) || chapters[0];
+                    if (activeChapter) {
+                        const rtfContent = generateInitialChapterRtf(activeChapter);
+                        const historyFileName = generateChapterVersionFileName(activeChapter);
+                        
+                        try {
+                            const historyDirHandle = await dirHandle.getDirectoryHandle('history', { create: true });
+                            const historyFileHandle = await historyDirHandle.getFileHandle(historyFileName, { create: true });
+                            const historyWritable = await historyFileHandle.createWritable();
+                            await historyWritable.write(rtfContent);
+                            await historyWritable.close();
+                        } catch (err) {
+                            console.warn("Could not save to history subfolder on web:", err);
+                        }
+                    }
+
+                    setIsSavingVisual(true);
+                    setTimeout(() => setIsSavingVisual(false), 1500);
+                    return true;
+                }
+                return false;
+            } catch (err: any) {
+                if (err.name !== 'AbortError') {
+                    alert("Error saving to folder: " + err);
+                }
+                return false;
+            }
         } else {
             console.warn("Save feature requires Electron environment or updated Web Logic.");
             return false;
         }
-    }, [projectPath, novelState, settings, projectName]);
+    }, [projectPath, directoryHandle, novelState, settings, projectName, activeChapterId]);
 
     // Prevent accidental close without saving (WEB ONLY)
     useEffect(() => {
@@ -803,6 +896,7 @@ Return your response as a JSON array of strings, where each string is a single p
                                 writingGoals={writingGoals}
                                 onWritingGoalsChange={setWritingGoals}
                                 directoryHandle={directoryHandle}
+                                projectPath={projectPath}
                                 onDirectoryHandleChange={setDirectoryHandle}
                                 onGenerateWhatIf={onGenerateWhatIf}
                                 galleryItems={galleryItems}

@@ -38,13 +38,14 @@ interface ManuscriptProps {
     writingGoals: WritingGoals;
     onWritingGoalsChange: (goals: WritingGoals) => void;
     directoryHandle: FileSystemDirectoryHandle | null;
+    projectPath?: string | null;
     onDirectoryHandleChange: (handle: FileSystemDirectoryHandle | null) => void;
     onGenerateWhatIf: (text: string, context: string) => void;
     galleryItems: GalleryItem[];
     onGalleryItemsChange: (items: GalleryItem[]) => void;
     isVisible: boolean;
     isSaving: boolean;
-    onSaveToFolder: () => Promise<boolean>;
+    onSaveToFolder: (forceNewFolder?: boolean) => Promise<boolean>;
 }
 
 type ModalType = 'findReplace' | 'shortcuts' | 'stats' | 'customizeToolbar' | 'history' | 'voiceSettings' | 'designGallery' | 'readAloud' | 'spellCheck' | 'userGuide' | 'importNovel';
@@ -71,7 +72,7 @@ const createWavUrl = (pcmData: Uint8Array, sampleRate: number): string => {
     view.setUint16(34, 16, true);
     writeString(view, 36, 'data');
     view.setUint32(40, pcmData.length, true);
-    const blob = new Blob([header, pcmData], { type: 'audio/wav' });
+    const blob = new Blob([header, pcmData as any], { type: 'audio/wav' });
     return URL.createObjectURL(blob);
 };
 
@@ -162,7 +163,7 @@ export const Manuscript: React.FC<ManuscriptProps> = ({
     settings, onSettingsChange, isFocusMode, onToggleFocusMode,
     chapters, activeChapterId, onActiveChapterIdChange,
     shortcuts, onShortcutsChange,
-    writingGoals, onWritingGoalsChange, directoryHandle, onDirectoryHandleChange,
+    writingGoals, onWritingGoalsChange, directoryHandle, projectPath, onDirectoryHandleChange,
     onGenerateWhatIf,
     galleryItems, onGalleryItemsChange,
     isVisible,
@@ -278,7 +279,7 @@ export const Manuscript: React.FC<ManuscriptProps> = ({
 
     const handleManualSave = useCallback(async () => {
         if (isSaving) return;
-        const success = await onSaveToFolder();
+        const success = await onSaveToFolder(false);
         if (success) {
             const now = new Date();
             const d = String(now.getDate()).padStart(2, '0');
@@ -336,7 +337,7 @@ export const Manuscript: React.FC<ManuscriptProps> = ({
     }, [settings, writingGoals]);
 
     useEffect(() => {
-        const handleKeyDown = (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); handleManualSave(); } };
+        const handleKeyDown = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); handleManualSave(); } };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [handleManualSave]);
@@ -780,7 +781,7 @@ export const Manuscript: React.FC<ManuscriptProps> = ({
                     <div className="absolute bottom-4 right-8 z-10 text-xs font-sans pointer-events-none select-none transition-opacity duration-300 backdrop-blur-sm px-2 py-1 rounded" style={{ color: settings.textColor, opacity: 0.6, backgroundColor: settings.toolbarBg ? `${settings.toolbarBg}40` : 'transparent' }}>{layout.columns === 1 ? <span>Page {pageInfo.current} of {pageInfo.total}</span> : <span>Pages {pageInfo.current} and {pageInfo.current + 1} of {pageInfo.total}</span>}</div>
                 </div>
                 <div className={toolbarContainerClasses}>
-                    <Toolbar settings={settings} onSettingsChange={settings => onSettingsChange(settings)} chapters={chapters} activeChapterId={activeChapterId} onSelectChapter={onActiveChapterIdChange} isSaving={isSaving} activeChapterWordCount={activeChapterWordCount} sessionWordCount={sessionWordCount} writingGoals={writingGoals} onSaveToFolder={async () => { if (isSavingProp) return false; return onSaveToFolder().then(() => true); }} onDownloadRtf={() => { const rtf = generateRtfForChapters(chapters); downloadFile('novel.rtf', rtf, 'application/rtf'); }} isFocusMode={isFocusMode} onToggleFocusMode={onToggleFocusMode} isNotesPanelOpen={isNotesPanelOpen} onToggleNotesPanel={handleToggleNotesPanel} onToggleModal={(modal) => modal === 'findReplace' ? setIsFindReplaceOpen(p => !p) : setActiveModal(modal)} isSoundEnabled={isSoundEnabled} onToggleSound={() => onSettingsChange({ isSoundEnabled: !isSoundEnabled })} isFullscreen={isFullscreen} onToggleFullscreen={() => { if (!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen(); setIsFullscreen(!isFullscreen); }} isSinglePageView={false} isSpellcheckEnabled={isSpellcheckEnabled} onToggleSpellcheck={() => setIsSpellcheckEnabled(p => !p)} onToggleTransitionStyle={() => onSettingsChange({ transitionStyle: settings.transitionStyle === 'scroll' ? 'fade' : 'scroll' })} hasDirectory={!!directoryHandle} onToggleReadAloud={() => setActiveModal('readAloud')} ttsStatus={ttsStatus} onExportNove={handleExportNove} onExportStandaloneNove={handleExportStandaloneNove} onExportBlankNove={handleExportBlankNove} onImportNove={() => setActiveModal('importNovel')} updateAvailable={!!availableUpdate} />
+                    <Toolbar settings={settings} onSettingsChange={settings => onSettingsChange(settings)} chapters={chapters} activeChapterId={activeChapterId} onSelectChapter={onActiveChapterIdChange} isSaving={isSaving} activeChapterWordCount={activeChapterWordCount} sessionWordCount={sessionWordCount} writingGoals={writingGoals} onSaveToFolder={async (forceNewFolder?: boolean) => { if (isSavingProp) return false; return onSaveToFolder(forceNewFolder).then(() => true); }} onDownloadRtf={() => { const rtf = generateRtfForChapters(chapters); downloadFile('novel.rtf', rtf, 'application/rtf'); }} isFocusMode={isFocusMode} onToggleFocusMode={onToggleFocusMode} isNotesPanelOpen={isNotesPanelOpen} onToggleNotesPanel={handleToggleNotesPanel} onToggleModal={(modal) => modal === 'findReplace' ? setIsFindReplaceOpen(p => !p) : setActiveModal(modal)} isSoundEnabled={isSoundEnabled} onToggleSound={() => onSettingsChange({ isSoundEnabled: !isSoundEnabled })} isFullscreen={isFullscreen} onToggleFullscreen={() => { if (!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen(); setIsFullscreen(!isFullscreen); }} isSinglePageView={false} isSpellcheckEnabled={isSpellcheckEnabled} onToggleSpellcheck={() => setIsSpellcheckEnabled(p => !p)} onToggleTransitionStyle={() => onSettingsChange({ transitionStyle: settings.transitionStyle === 'scroll' ? 'fade' : 'scroll' })} hasDirectory={!!directoryHandle || !!projectPath} onToggleReadAloud={() => setActiveModal('readAloud')} ttsStatus={ttsStatus} onExportNove={handleExportNove} onExportStandaloneNove={handleExportStandaloneNove} onExportBlankNove={handleExportBlankNove} onImportNove={() => setActiveModal('importNovel')} updateAvailable={!!availableUpdate} />
                 </div>
             </div>
             {isNotesPanelOpen && <div className="flex-shrink-0 h-full relative border-l" style={{ width: `${notesPanelWidth}px`, borderColor: settings.toolbarInputBorderColor }}><NotesPanel settings={settings} activeChapter={activeChapter} onChapterDetailsChange={handleChapterDetailsChange} initialWidth={notesPanelWidth} onWidthChange={setNotesPanelWidth} allChapters={chapters} allCharacters={characters} generateId={generateId} /></div>}
@@ -790,7 +791,7 @@ export const Manuscript: React.FC<ManuscriptProps> = ({
             {activeModal === 'customizeToolbar' && <CustomizeToolbarModal settings={settings} currentVisibility={settings.toolbarVisibility || {}} onSave={(newVisibility) => onSettingsChange({ toolbarVisibility: newVisibility })} onClose={() => setActiveModal(null)} onSaveProject={onSaveToFolder} hasContent={hasContent} appUpdate={availableUpdate} onExportBlankNove={handleExportBlankNove} />}
             {activeModal === 'designGallery' && <DesignGalleryModal settings={settings} onClose={() => setActiveModal(null)} galleryItems={galleryItems} onGalleryItemsChange={onGalleryItemsChange} onSettingsChange={onSettingsChange} />}
             {activeModal === 'voiceSettings' && <VoiceSettingsModal settings={settings} characters={characters} onClose={() => { if (previousModal) { setActiveModal(previousModal); setPreviousModal(null); } else setActiveModal(null); }} onSettingsChange={onSettingsChange} />}
-            {activeModal === 'history' && <VersionHistoryModal settings={settings} activeChapter={activeChapter} directoryHandle={directoryHandle} onRestore={(content) => handleChapterDetailsChange(activeChapterId, { content })} onClose={() => setActiveModal(null)} />}
+            {activeModal === 'history' && <VersionHistoryModal settings={settings} activeChapter={activeChapter} directoryHandle={directoryHandle} projectPath={projectPath} onRestore={(content) => handleChapterDetailsChange(activeChapterId, { content })} onClose={() => setActiveModal(null)} />}
             {activeModal === 'readAloud' && <ReadAloudModal settings={settings} onClose={() => setActiveModal(null)} onPlay={handleTTSPlay} onPause={handleTTSPause} onStop={handleTTSStop} onOpenSettings={() => { setPreviousModal('readAloud'); setActiveModal('voiceSettings'); }} status={ttsStatus} activeChapterTitle={`${activeChapter.chapterNumber}. ${activeChapter.title}`} />}
             {activeModal === 'spellCheck' && <SpellCheckModal settings={settings} chapter={activeChapter} onClose={() => setActiveModal(null)} onUpdateContent={(newContent) => handleChapterDetailsChange(activeChapter.id, { content: newContent })} />}
             {activeModal === 'importNovel' && <ImportNovelModal settings={settings} onClose={() => setActiveModal(null)} directoryHandle={directoryHandle} />}

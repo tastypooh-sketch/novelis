@@ -203,7 +203,7 @@ Provide your response in Markdown format.`;
                     systemInstruction
                 }
             });
-            setAiResponse(response.text);
+            setAiResponse(response.text || null);
         } catch (e) {
             console.error(e);
             setError("Sorry, something went wrong while generating feedback. Please try again.");

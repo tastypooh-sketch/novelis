@@ -1,5 +1,5 @@
 
-name: Build and Release Novelis 76.8.0
+name: Build and Release Novelis 7.6.20
 
 on:
   push:
@@ -57,3 +57,36 @@ jobs:
         run: npm run electron:build:linux
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  android-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v6
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Build Android App
+        run: |
+          npm run build
+          npx cap sync
+          cd android && ./gradlew assembleDebug
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: novelis-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk

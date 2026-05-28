@@ -1177,7 +1177,7 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
                 if (sel && !sel.isCollapsed) document.execCommand('insertText', false, replaceText);
             };
 
-            const handleUpgrade = () => window.open('https://novelos.lemonsqueezy.com/', '_blank');
+            const handleUpgrade = () => window.open('https://novelis.lemonsqueezy.com/', '_blank');
             const handleDonate = () => window.open('https://buymeacoffee.com/doovenism', '_blank');
 
             const handleAddChapter = () => {

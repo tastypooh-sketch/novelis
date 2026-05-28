@@ -356,6 +356,7 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
             FilePlus: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>,
             LineHeight: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /><path strokeLinecap="round" strokeLinejoin="round" d="M21 6.75v10.5m0 0l-2.25-2.25M21 17.25l2.25-2.25" /></svg>,
             Trash: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="h-4 w-4"><path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>,
+            Edit: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>,
         };
 
         const useTypewriterSound = (enabled, volume = 0.75) => {
@@ -725,7 +726,7 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
             );
         };
 
-        const NoveManuscript = ({ chapter, onChange, settings, isFocusMode, onPlaySound, notesOpen, onPageInfoChange, isSpellcheckEnabled, searchTarget }) => {
+        const NoveManuscript = ({ chapter, onChange, onRenameTitle, settings, isFocusMode, onPlaySound, notesOpen, onPageInfoChange, isSpellcheckEnabled, searchTarget }) => {
             const editorRef = useRef(null);
             const editorContainerRef = useRef(null);
             const isTyping = useRef(false);
@@ -1025,7 +1026,7 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
                 textAlign: settings.textAlign || 'left', hyphens: settings.textAlign === 'justify' ? 'auto' : 'manual', WebkitHyphens: settings.textAlign === 'justify' ? 'auto' : 'manual',
                 height: 'calc(100% - 6rem)', columnFill: 'auto', columnGap: \`\${layout.gap}px\`, columnWidth: \`\${layout.colWidth}px\`, columnCount: layout.columns,
                 width: typeof exactContentWidth === 'number' ? \`\${exactContentWidth}px\` : exactContentWidth,
-                paddingTop: '3rem', paddingBottom: '3rem', paddingLeft: \`\${layout.sideMargin}px\`, paddingRight: \`\${layout.sideMargin}px\`,
+                paddingTop: '4rem', paddingBottom: '2rem', paddingLeft: \`\${layout.sideMargin}px\`, paddingRight: \`\${layout.sideMargin}px\`,
                 boxSizing: 'content-box', opacity: isTransitioning ? 0 : 1, transition: 'opacity 0.15s ease-in-out', orphans: 2, widows: 2, transform: 'translateZ(0)'
             };
 
@@ -1033,6 +1034,40 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
                 <div className="flex-grow relative min-h-0 overflow-hidden">
                     <div ref={editorContainerRef} className="absolute inset-0 overflow-x-auto overflow-y-hidden focus:outline-none no-scrollbar" onWheel={handleWheel} onScroll={handleScroll} onClick={() => setTimeout(checkAndEnforceCaretVisibility, 10)} style={{ overflowAnchor: 'none' }}>
                         {layout.columns === 2 && (settings.showBookSpine === true) && <div className="book-spine-effect" />}
+                        
+                        {layout.stride > 0 && onRenameTitle && (
+                            <div 
+                                style={{
+                                    position: 'absolute',
+                                    top: '1.25rem',
+                                    left: \`\${layout.sideMargin}px\`,
+                                    width: \`\${layout.colWidth}px\`,
+                                    zIndex: 30,
+                                    color: settings.textColor,
+                                }}
+                                className="flex items-center gap-2 border-b border-dashed border-white/10 focus-within:border-white/30 transition-colors pb-0.5"
+                            >
+                                <span className="text-xs font-mono opacity-40 select-none shrink-0" style={{ fontFamily: 'monospace' }}>CH {chapter.chapterNumber} :</span>
+                                <input 
+                                    type="text" 
+                                    value={chapter.title || ''} 
+                                    onChange={(e) => onRenameTitle(e.target.value)}
+                                    onKeyDown={(e) => e.stopPropagation()}
+                                    onKeyUp={(e) => e.stopPropagation()}
+                                    className="bg-transparent border-none p-0 m-0 font-bold text-lg focus:ring-0 focus:outline-none w-full"
+                                    style={{ 
+                                        color: settings.textColor, 
+                                        fontFamily: settings.fontFamily || 'Lora',
+                                        outline: 'none', 
+                                        border: 'none', 
+                                        boxShadow: 'none',
+                                        backgroundColor: 'transparent'
+                                    }}
+                                    placeholder="Untitled Chapter"
+                                />
+                            </div>
+                        )}
+
                         <div ref={editorRef} contentEditable suppressContentEditableWarning spellCheck={isSpellcheckEnabled} className="editor-content outline-none" style={editorStyle} onBeforeInput={handleBeforeInput} onInput={handleInput} onKeyDown={handleKeyDown} onKeyUp={handleKeyUp} onBlur={checkAndEnforceCaretVisibility} />
                     </div>
                     <div className="absolute bottom-4 right-8 z-10 text-xs font-sans pointer-events-none select-none transition-opacity duration-300 backdrop-blur-sm px-2 py-1 rounded" style={{ color: settings.textColor, opacity: 0.6, backgroundColor: settings.toolbarBg ? \`\${settings.toolbarBg}40\` : 'transparent' }}>
@@ -1367,7 +1402,7 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
                     {!hasAcceptedEULA && <EULAModal settings={settings} onAccept={handleAcceptEULA} />}
                     {notification && <div className="fixed top-6 left-1/2 transform -translate-x-1/2 z-[9999] px-6 py-2 rounded-full shadow-xl toast-enter flex items-center gap-2 backdrop-blur-md border border-white/20" style={{ backgroundColor: settings.successColor, color: '#FFFFFF' }}><span className="font-bold text-sm">{notification}</span></div>}
                     <div className="flex flex-grow overflow-hidden relative">
-                        <NoveManuscript chapter={activeChapter} onChange={handleContentChange} settings={settings} isFocusMode={isFocusMode} onPlaySound={playSound} notesOpen={notesOpen} onPageInfoChange={setPageInfo} isSpellcheckEnabled={isSpellcheckEnabled} searchTarget={searchTarget} shortcuts={shortcuts} />
+                        <NoveManuscript chapter={activeChapter} onChange={handleContentChange} onRenameTitle={(newTitle) => setChapters(chapters.map(c => c.id === activeChapterId ? { ...c, title: newTitle } : c))} settings={settings} isFocusMode={isFocusMode} onPlaySound={playSound} notesOpen={notesOpen} onPageInfoChange={setPageInfo} isSpellcheckEnabled={isSpellcheckEnabled} searchTarget={searchTarget} shortcuts={shortcuts} />
                         {isFindReplaceOpen && <FindReplacePanel onClose={() => setIsFindReplaceOpen(false)} settings={settings} chapters={chapters} activeChapterId={activeChapterId} onNavigateMatch={handleNavigateMatch} onReplace={handleReplace} onReplaceAll={handleReplaceAll} />}
                         {notesOpen && !isFocusMode && (
                             <div className="w-80 border-l flex flex-col shadow-xl z-20 flex-shrink-0 transition-colors backdrop-blur-md" style={{backgroundColor: settings.toolbarBg + 'E6', borderColor: settings.toolbarButtonBg}}>
@@ -1383,6 +1418,12 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
                         <div className="flex items-center gap-2 sm:gap-4 flex-wrap justify-center sm:justify-start w-full sm:w-auto">
                             <a href="https://www.thomascorfield.com" target="_blank" rel="noopener noreferrer" className="text-xl font-serif font-bold tracking-wider hover:opacity-80 transition-opacity mr-2" style={{color: settings.textColor}}>Nov<span style={{color: settings.accentColor}}>é</span></a>
                             <select value={activeChapterId} onChange={(e) => setActiveChapterId(e.target.value)} className="text-sm border rounded px-2 py-1 focus:outline-none" style={{backgroundColor: settings.toolbarButtonBg, color: settings.textColor, borderColor: settings.toolbarButtonBg}}>{chapters.map(c => <option key={c.id} value={c.id}>{c.chapterNumber}. {c.title}</option>)}</select>
+                            <button onClick={() => {
+                                const newTitle = prompt("Rename Chapter:", activeChapter.title);
+                                if (newTitle !== null && newTitle.trim() !== "") {
+                                    setChapters(chapters.map(c => c.id === activeChapterId ? { ...c, title: newTitle.trim() } : c));
+                                }
+                            }} className="p-1 rounded hover:opacity-80 transition-colors flex items-center justify-center h-8 w-8" style={{backgroundColor: settings.toolbarButtonBg, color: settings.textColor}} title="Rename Chapter"><Icons.Edit /></button>
                             <button onClick={handleAddChapter} className="p-1 rounded hover:opacity-80 transition-colors" style={{backgroundColor: settings.toolbarButtonBg, color: settings.textColor}} title="Add New Chapter"><Icons.Plus /></button>
                             <div className="flex items-center gap-2">
                                 <select value={settings.fontFamily} onChange={e => handleSettingsChange({ fontFamily: e.target.value })} className="text-sm border rounded px-2 py-1 focus:outline-none" style={{backgroundColor: settings.toolbarButtonBg, color: settings.textColor, borderColor: settings.toolbarButtonBg}}>{fontOptions.map(font => <option key={font} value={font}>{font}</option>)}</select>

@@ -205,7 +205,11 @@ const novelReducer = (state: INovelState, action: Action): INovelState => {
   return produce(state, draft => {
     switch (action.type) {
       case 'SET_CHAPTERS':
-        draft.chapters = action.payload;
+        draft.chapters = action.payload.map(ch => {
+          const textOnly = (ch.content || '').replace(/<[^>]*>/g, ' ');
+          ch.wordCount = textOnly.trim().split(/\s+/).filter(Boolean).length;
+          return ch;
+        });
         break;
       case 'ADD_CHAPTER': {
         const newChapter: IChapter = {
@@ -224,6 +228,9 @@ const novelReducer = (state: INovelState, action: Action): INovelState => {
           wordCount: 0,
           ...action.payload,
         };
+        const contentStr = newChapter.content || '';
+        const textOnly = contentStr.replace(/<[^>]*>/g, ' ');
+        newChapter.wordCount = textOnly.trim().split(/\s+/).filter(Boolean).length;
         draft.chapters.push(newChapter);
         break;
       }
@@ -231,6 +238,10 @@ const novelReducer = (state: INovelState, action: Action): INovelState => {
         const chapter = draft.chapters.find(c => c.id === action.payload.id);
         if (chapter) {
           Object.assign(chapter, action.payload.updates);
+          if (action.payload.updates.content !== undefined) {
+            const textOnly = chapter.content.replace(/<[^>]*>/g, ' ');
+            chapter.wordCount = textOnly.trim().split(/\s+/).filter(Boolean).length;
+          }
         }
         break;
       }
@@ -419,8 +430,17 @@ const novelReducer = (state: INovelState, action: Action): INovelState => {
         draft.socialMediaState.postVariations = null;
         draft.socialMediaState.variationPlatform = null;
         break;
-      case 'LOAD_PROJECT':
-        return action.payload;
+      case 'LOAD_PROJECT': {
+        const loadedState = action.payload;
+        if (loadedState && loadedState.chapters) {
+          loadedState.chapters = loadedState.chapters.map(ch => {
+            const textOnly = (ch.content || '').replace(/<[^>]*>/g, ' ');
+            ch.wordCount = textOnly.trim().split(/\s+/).filter(Boolean).length;
+            return ch;
+          });
+        }
+        return loadedState;
+      }
     }
   });
 };

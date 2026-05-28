@@ -70,7 +70,7 @@ interface ToolbarProps {
   activeChapterWordCount: number;
   sessionWordCount: number;
   writingGoals: WritingGoals;
-  onSaveToFolder: () => void;
+  onSaveToFolder: (forceNewFolder?: boolean) => void;
   onDownloadRtf: () => void;
   isFocusMode: boolean;
   onToggleFocusMode: () => void;
@@ -159,7 +159,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         className={`h-8 mr-2 flex items-center font-['Lora'] font-bold text-2xl tracking-tight select-none hover:opacity-80 transition-opacity ${isSaving ? 'save-flash' : ''}`}
         style={{ color: 'inherit' }}
       >
-        Novel<span style={{ color: settings.accentColor }}>o</span>s
+        Novel<span style={{ color: settings.accentColor }}>i</span>s
       </a>
       <div className="flex items-center">
         <select id="chapterSelect" value={activeChapterId} onChange={e => onSelectChapter(e.target.value)} 
@@ -295,25 +295,56 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
         <div className="w-px h-6 bg-gray-600 mx-2 opacity-30 hidden sm:block"></div>
 
-        <div className="relative" ref={saveMenuRef}>
+        <div className="relative flex items-center" ref={saveMenuRef}>
             <button 
-                onClick={() => setIsSaveMenuOpen(prev => !prev)} 
+                onClick={() => {
+                    if (hasDirectory) {
+                        onSaveToFolder(false); // Quick snapshot save
+                    } else {
+                        onSaveToFolder(true); // Initial save prompt
+                    }
+                }} 
+                onContextMenu={(e) => {
+                    e.preventDefault();
+                    setIsSaveMenuOpen(prev => !prev);
+                }}
                 onFocus={(e) => e.currentTarget.blur()}
-                className="flex items-center gap-2 px-4 py-1.5 rounded text-sm font-medium transition-colors hover:opacity-90 text-white"
+                className={`flex items-center gap-2 px-4 py-1.5 rounded text-sm font-medium transition-all hover:opacity-90 text-white group ${isSaving ? 'save-flash' : ''}`}
                 style={{ backgroundColor: settings.accentColor }}
                 onMouseEnter={e => e.currentTarget.style.backgroundColor = settings.accentColorHover || ''}
                 onMouseLeave={e => e.currentTarget.style.backgroundColor = settings.accentColor || ''}
                 onMouseDown={(e) => e.preventDefault()}
+                title={hasDirectory ? "Save Project Snapshot (Ctrl+S) - Right-click for options" : "Initial Save to Folder (Ctrl+S) - Right-click for options"}
             >
-                <SaveIcon className="h-4 w-4" />
-                Save
+                <div className="flex items-center gap-2">
+                    <SaveIcon className="h-4 w-4" />
+                    <span>{hasDirectory ? "Save" : "Save to Folder"}</span>
+                    <svg 
+                        className={`h-3 w-3 opacity-50 group-hover:opacity-100 transition-transform duration-200 ${isSaveMenuOpen ? 'rotate-180' : ''}`} 
+                        fill="none" 
+                        viewBox="0 0 24 24" 
+                        stroke="currentColor"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setIsSaveMenuOpen(prev => !prev);
+                        }}
+                    >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
+                    </svg>
+                </div>
             </button>
+
             {isSaveMenuOpen && (
                 <div className="absolute bottom-full right-0 mb-2 w-72 rounded-md shadow-lg z-10 py-1"
                     style={{ backgroundColor: settings.dropdownBg }}
                 >
                     <div className="px-4 py-2 text-[10px] uppercase font-bold tracking-widest opacity-50" style={{ color: settings.toolbarText }}>File Management</div>
-                    <button {...menuItemHoverProps} onClick={() => { onSaveToFolder(); setIsSaveMenuOpen(false); }} className="block w-full text-left px-4 py-2 text-sm cursor-pointer" style={{color: settings.toolbarText, backgroundColor: 'transparent'}}>Save Project to Folder (Ctrl+S)</button>
+                    {hasDirectory && (
+                        <button {...menuItemHoverProps} onClick={() => { onSaveToFolder(false); setIsSaveMenuOpen(false); }} className="block w-full text-left px-4 py-2 text-sm cursor-pointer" style={{color: settings.toolbarText, backgroundColor: 'transparent'}}>Save Project Snapshot (Ctrl+S)</button>
+                    )}
+                    <button {...menuItemHoverProps} onClick={() => { onSaveToFolder(true); setIsSaveMenuOpen(false); }} className="block w-full text-left px-4 py-2 text-sm cursor-pointer" style={{color: settings.toolbarText, backgroundColor: 'transparent'}}>
+                        {hasDirectory ? "Save Project to New Folder..." : "Save Project to Folder (Ctrl+S)"}
+                    </button>
                     <button {...menuItemHoverProps} onClick={() => { onDownloadRtf(); setIsSaveMenuOpen(false); }} className="block w-full text-left px-4 py-2 text-sm cursor-pointer" style={{color: settings.toolbarText, backgroundColor: 'transparent'}}>Export Chapters as RTF</button>
                     
                     <div className="border-t my-1 mx-2" style={{borderColor: settings.toolbarInputBorderColor || 'transparent'}}></div>

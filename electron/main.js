@@ -164,6 +164,58 @@ ipcMain.handle('write-zip-to-folder', async (event, folderPath, fileName, conten
     }
 });
 
+// Write History Version
+ipcMain.handle('write-history-version', async (event, folderPath, fileName, content) => {
+    try {
+      const historyDir = path.join(folderPath, 'history');
+      if (!fs.existsSync(historyDir)) {
+        fs.mkdirSync(historyDir, { recursive: true });
+      }
+      const filePath = path.join(historyDir, fileName);
+      fs.writeFileSync(filePath, content, 'utf8');
+      return true;
+    } catch (e) {
+      console.error('Failed to write history file:', e);
+      return false;
+    }
+});
+
+// Read History List (for Version History Modal)
+ipcMain.handle('read-history-list', async (event, folderPath, prefix) => {
+    try {
+      const historyDir = path.join(folderPath, 'history');
+      if (!fs.existsSync(historyDir)) return [];
+      const files = fs.readdirSync(historyDir);
+      const list = [];
+      for (const f of files) {
+        if (f.startsWith(prefix) && f.endsWith('.rtf')) {
+          const filePath = path.join(historyDir, f);
+          const stats = fs.statSync(filePath);
+          list.push({
+            name: f,
+            mtimeMs: stats.mtimeMs
+          });
+        }
+      }
+      return list;
+    } catch (e) {
+      console.error('Failed to read history files list:', e);
+      return [];
+    }
+});
+
+// Read History File Content (for Version History Modal Preview)
+ipcMain.handle('read-history-file', async (event, folderPath, fileName) => {
+    try {
+      const filePath = path.join(folderPath, 'history', fileName);
+      if (!fs.existsSync(filePath)) return null;
+      return fs.readFileSync(filePath, 'utf8');
+    } catch (e) {
+      console.error('Failed to read history file content:', e);
+      return null;
+    }
+});
+
 // 4. Scan for Latest ZIP
 ipcMain.handle('scan-for-latest-zip', async (event, folderPath) => {
     try {

@@ -6,18 +6,19 @@ interface VersionHistoryModalProps {
     settings: EditorSettings;
     activeChapter: IChapter;
     directoryHandle: FileSystemDirectoryHandle | null;
+    projectPath?: string | null;
     onRestore: (content: string) => void;
     onClose: () => void;
 }
 
 interface VersionFile {
     name: string;
-    handle: FileSystemFileHandle;
+    handle?: FileSystemFileHandle;
     timestamp: Date;
     content?: string;
 }
 
-export const VersionHistoryModal: React.FC<VersionHistoryModalProps> = ({ settings, activeChapter, directoryHandle, onRestore, onClose }) => {
+export const VersionHistoryModal: React.FC<VersionHistoryModalProps> = ({ settings, activeChapter, directoryHandle, projectPath, onRestore, onClose }) => {
     const [history, setHistory] = useState<VersionFile[]>([]);
     const [selectedVersion, setSelectedVersion] = useState<VersionFile | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -42,6 +43,48 @@ export const VersionHistoryModal: React.FC<VersionHistoryModalProps> = ({ settin
     }, [onClose]);
 
     const fetchHistory = useCallback(async () => {
+        // --- 1. Desktop (Electron) History Loading ---
+        // @ts-ignore
+        if (window.electronAPI && projectPath) {
+            try {
+                const chapterPrefix = `${activeChapter.title}-${activeChapter.chapterNumber}_`;
+                // @ts-ignore
+                const entries = await window.electronAPI.readHistoryList(projectPath, chapterPrefix);
+                
+                const versions: VersionFile[] = entries.map((entry: any) => {
+                    const timestampStr = entry.name.replace(chapterPrefix, '').replace('.rtf', '');
+                    const match = timestampStr.match(/^(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})$/);
+                    let dateObj: Date;
+                    
+                    if (match) {
+                        const [_, y, m, d, hh, min, ss] = match;
+                        dateObj = new Date(Date.UTC(parseInt(y), parseInt(m) - 1, parseInt(d), parseInt(hh), parseInt(min), parseInt(ss)));
+                    } else {
+                        // Fallback to original parsing
+                        dateObj = new Date(timestampStr.replace(/_/g, 'T').replace(/-/g, ':') + 'Z');
+                        if (isNaN(dateObj.getTime())) {
+                            dateObj = new Date(entry.mtimeMs || Date.now());
+                        }
+                    }
+
+                    return {
+                        name: entry.name,
+                        timestamp: dateObj
+                    };
+                });
+
+                versions.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+                setHistory(versions);
+            } catch (e) {
+                setError("Could not read desktop version history folder.");
+                console.error(e);
+            } finally {
+                setIsLoading(false);
+            }
+            return;
+        }
+
+        // --- 2. Web (FileSystemAccess API) History Loading ---
         if (!directoryHandle) {
             setError("No project folder is open. Save your work to a folder to enable version history.");
             setIsLoading(false);
@@ -57,8 +100,21 @@ export const VersionHistoryModal: React.FC<VersionHistoryModalProps> = ({ settin
             for await (const entry of historyHandle.values()) {
                 if (entry.kind === 'file' && entry.name.startsWith(chapterPrefix)) {
                     const timestampStr = entry.name.replace(chapterPrefix, '').replace('.rtf', '');
-                    const date = new Date(timestampStr.replace(/_/g, 'T').replace(/-/g, ':') + 'Z');
-                    versions.push({ name: entry.name, handle: entry as FileSystemFileHandle, timestamp: date });
+                    const match = timestampStr.match(/^(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})$/);
+                    let dateObj: Date;
+
+                    if (match) {
+                        const [_, y, m, d, hh, min, ss] = match;
+                        dateObj = new Date(Date.UTC(parseInt(y), parseInt(m) - 1, parseInt(d), parseInt(hh), parseInt(min), parseInt(ss)));
+                    } else {
+                        // Fallback to original parsing
+                        dateObj = new Date(timestampStr.replace(/_/g, 'T').replace(/-/g, ':') + 'Z');
+                        if (isNaN(dateObj.getTime())) {
+                            dateObj = new Date();
+                        }
+                    }
+
+                    versions.push({ name: entry.name, handle: entry as FileSystemFileHandle, timestamp: dateObj });
                 }
             }
             versions.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
@@ -73,7 +129,7 @@ export const VersionHistoryModal: React.FC<VersionHistoryModalProps> = ({ settin
         } finally {
             setIsLoading(false);
         }
-    }, [directoryHandle, activeChapter.title, activeChapter.chapterNumber]);
+    }, [directoryHandle, projectPath, activeChapter.title, activeChapter.chapterNumber]);
 
     useEffect(() => {
         fetchHistory();
@@ -86,8 +142,17 @@ export const VersionHistoryModal: React.FC<VersionHistoryModalProps> = ({ settin
         }
         setSelectedVersion(version); // Select immediately to show loading state in preview
         try {
-            const file = await version.handle.getFile();
-            const text = await file.text();
+            let text = '';
+            // @ts-ignore
+            if (window.electronAPI && projectPath) {
+                // @ts-ignore
+                text = await window.electronAPI.readHistoryFile(projectPath, version.name);
+            } else if (version.handle) {
+                const file = await version.handle.getFile();
+                text = await file.text();
+            } else {
+                throw new Error("Missing file accessor.");
+            }
             
             // Basic RTF to plain text conversion for preview
             let content = text;
@@ -107,7 +172,7 @@ export const VersionHistoryModal: React.FC<VersionHistoryModalProps> = ({ settin
             content = content.replace(/\\([a-z]+-?)\d*\s?/g, '');
             content = content.replace(/[\{\}]/g, '');
             const plainText = content.trim();
-
+ 
             const versionWithContent = { ...version, content: plainText };
             setSelectedVersion(versionWithContent);
             setHistory(h => h.map(v => v.name === version.name ? versionWithContent : v));

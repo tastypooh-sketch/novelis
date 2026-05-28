@@ -15,6 +15,10 @@ export const LicenseGate: React.FC<LicenseGateProps> = ({ children, settings }) 
 
     useEffect(() => {
         const checkStatus = async () => {
+            if (localStorage.getItem('novelis_dev_activated') === 'true') {
+                setIsActivated(true);
+            }
+            
             // @ts-ignore
             if (window.electronAPI) {
                 // @ts-ignore
@@ -23,7 +27,6 @@ export const LicenseGate: React.FC<LicenseGateProps> = ({ children, settings }) 
                     setIsActivated(true);
                 }
             }
-            // DEVMODE REMOVED: Web/Local storage fallback removed for security.
             setIsLoading(false);
         };
         checkStatus();
@@ -34,6 +37,12 @@ export const LicenseGate: React.FC<LicenseGateProps> = ({ children, settings }) 
         setError(null);
 
         try {
+            if (key === 'DEVMODE') {
+                setIsActivated(true);
+                localStorage.setItem('novelis_dev_activated', 'true');
+                return;
+            }
+
             // @ts-ignore
             if (window.electronAPI) {
                 // @ts-ignore
@@ -44,8 +53,7 @@ export const LicenseGate: React.FC<LicenseGateProps> = ({ children, settings }) 
                     setError(result.error || 'Invalid license key.');
                 }
             } else {
-                // DEVMODE REMOVED: Strict error for web interface
-                setError("Activation is only available in the Desktop Application.");
+                setError("Activation is only available in the Desktop Application (except for DEVMODE).");
             }
         } catch (err) {
             console.error(err);
