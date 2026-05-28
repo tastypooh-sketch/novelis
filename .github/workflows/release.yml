@@ -71,7 +71,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: 'npm'
 
       - name: Install dependencies
@@ -83,10 +83,19 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
+      - name: Accept Android Licenses
+        run: yes | sdkmanager --licenses || true
+
       - name: Build Android App
         run: |
           npm run build
-          npx cap sync
+          if [ ! -d "android" ]; then
+            echo "Android directory missing! Adding platform..."
+            npx cap add android
+          else
+            echo "Android directory exists. Syncing..."
+            npx cap sync
+          fi
           chmod +x android/gradlew
           cd android && ./gradlew assembleDebug --stacktrace
 
