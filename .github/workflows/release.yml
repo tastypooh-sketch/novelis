@@ -86,6 +86,7 @@ jobs:
         run: |
           npm run build
           npx cap sync
+          chmod +x android/gradlew
           cd android && ./gradlew assembleDebug
 
       - name: Upload Android APK

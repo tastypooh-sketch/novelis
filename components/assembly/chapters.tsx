@@ -5,7 +5,7 @@ import type { EditorSettings, ICharacter, IChapter, ISnippet, TileBackgroundStyl
 import { useNovelDispatch, useNovelState } from '../../NovelContext';
 import { useAssemblyAI } from './AssemblyAIContext';
 import MarkdownRenderer from '../common/MarkdownRenderer';
-import { ChevronDownIcon, BookOpenIcon, CameraIcon, LockClosedIconOutline, LockOpenIconOutline, RevertIcon, SparklesIconOutline, TrashIconOutline, StarIcon, XIcon, LinkIcon, ViewGridIcon, ChevronUpIcon, BrushIcon, SpinnerIcon, CheckCircleIcon, PaperAirplaneIcon } from '../common/Icons';
+import { ChevronDownIcon, BookOpenIcon, CameraIcon, LockClosedIconOutline, LockOpenIconOutline, RevertIcon, SparklesIconOutline, TrashIconOutline, StarIcon, XIcon, LinkIcon, ViewGridIcon, ChevronUpIcon, BrushIcon, SpinnerIcon, CheckCircleIcon, PaperAirplaneIcon, UserCircleIcon } from '../common/Icons';
 import { isColorLight, shadeColor, getImageColor } from '../../utils/colorUtils';
 import { generateBriefingHtml } from '../../utils/manuscriptUtils';
 import { AIError } from '../common/AIError';
@@ -126,6 +126,7 @@ interface ChapterTileProps {
 const ChapterTile: React.FC<ChapterTileProps> = React.memo(({
     chapter, allCharacters, snippets, settings, isExpanded, isSelected, onSelect, onToggleExpand, onUpdate, onDeleteRequest, draggableProps, isDragging, tileBackgroundStyle, scrollContainerRef
 }) => {
+    const dispatch = useNovelDispatch();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { isGeneratingChapter, errorId, errorMessage, onGenerateChapterDetails, onUpdateChapterFromManuscript } = useAssemblyAI();
     const isGenerating = isGeneratingChapter === chapter.id;

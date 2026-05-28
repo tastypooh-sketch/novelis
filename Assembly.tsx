@@ -434,7 +434,7 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 } 
             });
             const items = JSON.parse(response.text || '[]');
-            if (items) dispatch({ type: 'ADD_SNIPPETS', payload: items.map(i => ({ ...i, id: generateId(), isUsed: false })) });
+            if (items) dispatch({ type: 'ADD_SNIPPETS', payload: items.map((i: any) => ({ ...i, id: generateId(), isUsed: false })) });
             return true;
         } catch (e) { onSetError("Failed to analyze snippets.", 'snippets'); return false; }
         finally { setAiState(prev => ({ ...prev, isGeneratingSnippets: false })); }
@@ -502,7 +502,7 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 } 
             });
             const data = JSON.parse(response.text || '{}');
-            if (data) dispatch({ type: 'SET_PLOT_BRAINSTORM_STATE', payload: { pacingAndStructureAnalysis: { summary: data.pacing.summary, plotPoints: data.pacing.points.map(p => ({ ...p, id: generateId() })) }, characterAnalysis: data.characterAnalysis, opportunityAnalysis: data.opportunityAnalysis } });
+            if (data) dispatch({ type: 'SET_PLOT_BRAINSTORM_STATE', payload: { pacingAndStructureAnalysis: { summary: data.pacing.summary, plotPoints: data.pacing.points.map((p: any) => ({ ...p, id: generateId() })) }, characterAnalysis: data.characterAnalysis, opportunityAnalysis: data.opportunityAnalysis } });
         } catch (e) { onSetError("Full analysis failed.", 'plot'); }
         finally { dispatch({ type: 'SET_PLOT_BRAINSTORM_STATE', payload: { isGeneratingPacingAndStructure: false, isGeneratingCharacters: false, isGeneratingOpportunities: false } }); }
     };
@@ -526,10 +526,14 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 } 
             });
             const data = JSON.parse(response.text || '{}');
-            if (data) {
+            if (data && data.instagram) {
                 dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { generatedImagePrompt: data.imagePrompt, generatedInstagramPost: data.instagram, generatedTiktokPost: data.tiktok } });
                 const imgRes = await getAI().models.generateContent({ model: 'gemini-2.5-flash-image', contents: data.imagePrompt });
-                for (const part of imgRes.candidates[0].content.parts) if (part.inlineData) dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { generatedImageUrl: `data:image/png;base64,${part.inlineData.data}` } });
+                if (imgRes?.candidates?.[0]?.content?.parts) {
+                   for (const part of imgRes.candidates[0].content.parts) {
+                      if (part.inlineData) dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { generatedImageUrl: `data:image/png;base64,${part.inlineData.data}` } });
+                   }
+                }
             }
         } catch (e) { onSetError("Social content generation failed.", 'social'); }
         finally { dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { isLoading: false } }); }
@@ -570,7 +574,7 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 } 
             });
             const items = JSON.parse(response.text || '[]');
-            if (items) dispatch({ type: 'ADD_WORLD_ITEMS', payload: items.map(i => ({ ...i, id: generateId(), description: '' })) });
+            if (items) dispatch({ type: 'ADD_WORLD_ITEMS', payload: items.map((i: any) => ({ ...i, id: generateId(), description: '' })) });
         } catch (e) { onSetError("World notes distillation failed.", 'distill'); }
         finally { setAiState(prev => ({ ...prev, isDistillingWorld: false })); }
     };
