@@ -1,11 +1,11 @@
 {
   "name": "novelis-desktop",
-  "version": "7.6.20",
-  "description": "Novelis Desktop App",
+  "version": "7.6.21",
+  "description": "Novelis Desktop & Mobile App",
   "main": "electron/main.js",
   "repository": {
     "type": "git",
-    "url": "https://github.com/tastypooh-sketch/Novelis"
+    "url": "https://github.com/tastypooh-sketch/novelis"
   },
   "scripts": {
     "dev": "vite",
@@ -18,7 +18,9 @@
     "electron:build:win": "npm run build && electron-builder --win --publish always",
     "electron:build:linux": "npm run build && electron-builder --linux --publish always",
     "electron:build:all": "npm run build && electron-builder -mwl --publish always",
-    "android:build": "npm run build && npx cap copy && npx cap open android",
+    "cap:sync": "npm run build && npx cap sync",
+    "android:dev": "npm run build && npx cap run android",
+    "android:build": "npm run build && npx cap sync android && cd android && ./gradlew assembleRelease",
     "postinstall": "electron-builder install-app-deps"
   },
   "keywords": [],
@@ -61,7 +63,7 @@
       {
         "provider": "github",
         "owner": "tastypooh-sketch",
-        "repo": "Novelis"
+        "repo": "novelis"
       }
     ],
     "directories": {

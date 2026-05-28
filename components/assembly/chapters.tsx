@@ -126,9 +126,9 @@ interface ChapterTileProps {
 const ChapterTile: React.FC<ChapterTileProps> = React.memo(({
     chapter, allCharacters, snippets, settings, isExpanded, isSelected, onSelect, onToggleExpand, onUpdate, onDeleteRequest, draggableProps, isDragging, tileBackgroundStyle, scrollContainerRef
 }) => {
-    const dispatch = useNovelDispatch();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { isGeneratingChapter, errorId, errorMessage, onGenerateChapterDetails, onUpdateChapterFromManuscript } = useAssemblyAI();
+    const dispatch = useNovelDispatch();
     const isGenerating = isGeneratingChapter === chapter.id;
 
     const [localTitle, setLocalTitle] = useState(chapter.title);

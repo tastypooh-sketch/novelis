@@ -526,13 +526,13 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 } 
             });
             const data = JSON.parse(response.text || '{}');
-            if (data && data.instagram) {
+            if (data) {
                 dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { generatedImagePrompt: data.imagePrompt, generatedInstagramPost: data.instagram, generatedTiktokPost: data.tiktok } });
                 const imgRes = await getAI().models.generateContent({ model: 'gemini-2.5-flash-image', contents: data.imagePrompt });
-                if (imgRes?.candidates?.[0]?.content?.parts) {
-                   for (const part of imgRes.candidates[0].content.parts) {
-                      if (part.inlineData) dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { generatedImageUrl: `data:image/png;base64,${part.inlineData.data}` } });
-                   }
+                if (imgRes.candidates?.[0]?.content?.parts) {
+                    for (const part of imgRes.candidates[0].content.parts) {
+                        if (part.inlineData) dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { generatedImageUrl: `data:image/png;base64,${part.inlineData.data}` } });
+                    }
                 }
             }
         } catch (e) { onSetError("Social content generation failed.", 'social'); }
