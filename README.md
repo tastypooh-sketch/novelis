@@ -2,7 +2,7 @@
 # NOVELIS 
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Version](https://img.shields.io/badge/version-76.8.0-green.svg)
+![Version](https://img.shields.io/badge/version-7.6.20-green.svg)
 ![Status](https://img.shields.io/badge/status-stable-success.svg)
 
 **Novelis** redefines digital storytelling by fusing a distraction-free, horizontal "infinite spread" interface with a deeply integrated, context-aware AI engine. Unlike traditional corkboarding software where AI is merely an add-on, Novelis is architected from the ground up as a responsive "Novel Operating System." 
@@ -46,7 +46,7 @@ Built with **React**, **Electron**, and **Google Gemini 2.5/3.0**.
 
 1.  **Clone the repository**
     ```bash
-    git clone https://github.com/yourusername/novelis.git
+    git clone https://github.com/tastypooh-sketch/Novelis.git
     cd novelis
     ```
 
