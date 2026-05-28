@@ -87,8 +87,12 @@ jobs:
         run: |
           npm run build
           npx cap sync
+          if [ ! -d "android" ]; then
+            echo "Android directory missing! Attempting to add it..."
+            npx cap add android
+          fi
           chmod +x android/gradlew
-          cd android && ./gradlew assembleDebug
+          cd android && ./gradlew assembleDebug --stacktrace
 
       - name: Upload Android APK
         uses: actions/upload-artifact@v4
