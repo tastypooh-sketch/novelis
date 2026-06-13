@@ -1,6 +1,6 @@
 {
   "name": "novelis-desktop",
-  "version": "7.6.21",
+  "version": "7.6.32",
   "description": "Novelis Desktop & Mobile App",
   "main": "electron/main.js",
   "repository": {
@@ -20,7 +20,7 @@
     "electron:build:all": "npm run build && electron-builder -mwl --publish never",
     "cap:sync": "npm run build && npx cap sync",
     "android:dev": "npm run build && npx cap run android",
-    "android:build": "npm run build && npx cap sync android && cd android && ./gradlew assembleRelease",
+    "android:build": "npm run build && (npx cap add android || npx cap sync android) && chmod +x android/gradlew && cd android && ./gradlew assembleRelease",
     "postinstall": "electron-builder install-app-deps"
   },
   "keywords": [],
