@@ -1,5 +1,5 @@
 
-name: Build and Release Novelis 7.6.32
+name: Build and Release Novelis 7.6.33
 
 on:
   push:
@@ -82,11 +82,8 @@ jobs:
       - name: Build Android App
         run: |
           npm run build
-          if [ ! -d "android" ]; then
-            npx cap add android
-          fi
+          npx cap add android
           npx cap sync android
-          chmod +x android/gradlew
           cd android && ./gradlew assembleRelease
 
       - name: Upload Android APK
