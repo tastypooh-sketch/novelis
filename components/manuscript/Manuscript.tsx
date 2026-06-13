@@ -751,7 +751,7 @@ export const Manuscript: React.FC<ManuscriptProps> = ({
                 .book-spine-effect { position: fixed; top: 0; bottom: 0; left: 50%; width: 60px; margin-left: -30px; background: linear-gradient(to right, rgba(0,0,0,0) 0%, rgba(0,0,0,0.15) 35%, rgba(0,0,0,0.3) 50%, rgba(0,0,0,0.15) 65%, rgba(0,0,0,0) 100%); pointer-events: none; z-index: 5; opacity: 0.6; }
             `}</style>
             {notification && (
-                <div className="fixed top-6 left-1/2 transform -translate-x-1/2 z-[9999] px-6 py-2 rounded-full shadow-xl toast-enter flex items-center gap-2 backdrop-blur-md border border-white/20" style={{ backgroundColor: settings.successColor, color: '#FFFFFF' }}><span className="font-bold text-sm">{notification}</span></div>
+                <div className="fixed top-6 left-1/2 transform -translate-x-1/2 z-[9999] px-6 py-2 rounded-full shadow-xl toast-enter flex items-center gap-2 backdrop-blur-md border border-white/20" style={{ backgroundColor: settings.accentColor || settings.successColor, color: '#FFFFFF' }}><span className="font-bold text-sm">{notification}</span></div>
             )}
             <div className="flex-grow flex flex-col min-w-0 h-full relative">
                 <div className="flex-grow relative min-h-0 overflow-hidden">

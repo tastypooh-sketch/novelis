@@ -141,11 +141,12 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
             visibility: hidden;
         }
         
-        @keyframes flash-green-glow {
-            0% { filter: drop-shadow(0 0 6px #4ade80) brightness(1.1); }
+        @keyframes flash-accent-glow {
+            0% { filter: drop-shadow(0 0 10px ${settings.accentColor || '#4ade80'}) brightness(1.2); }
             100% { filter: none; }
         }
-        .save-flash { animation: flash-green-glow 1.5s ease-out forwards; }
+        .save-flash { animation: flash-accent-glow 0.8s ease-out forwards; }
+        .save-flash-green { animation: flash-accent-glow 0.8s ease-out forwards; }
 
         .book-spine-effect {
             position: fixed;
@@ -322,6 +323,7 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
 
         const Icons = {
             Save: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>,
+            Import: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>,
             Sparkles: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09-3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.898 20.562L16.25 22.5l-.648-1.938a2.25 2.25 0 01-1.473-1.473L12.25 18l1.938-.648a2.25 2.25 0 011.473 1.473L16.25 20.5l.648-1.938a2.25 2.25 0 011.473-1.473L20.25 16.5l-1.938.648a2.25 2.25 0 01-1.473 1.473z" /></svg>,
             Note: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>,
             Spinner: () => <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>,
@@ -1049,6 +1051,10 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
 
         const NoveApp = () => {
             const [chapters, setChapters] = useState(initialState?.chapters || []);
+            const [shortcuts, setShortcuts] = useState(initialState?.shortcuts || []);
+            const [characters, setCharacters] = useState(initialState?.characters || []);
+            const [world, setWorld] = useState(initialState?.world || []);
+            const [plot, setPlot] = useState(initialState?.plot || []);
             const [activeChapterId, setActiveChapterId] = useState(initialState?.chapters[0]?.id || '');
             const [notesOpen, setNotesOpen] = useState(false);
             const [isFocusMode, setIsFocusMode] = useState(false);
@@ -1065,8 +1071,122 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
             const [hasAcceptedEULA, setHasAcceptedEULA] = useState(() => localStorage.getItem('noveli_eula_accepted') === 'true');
             const isFirstRun = useRef(true);
             const [notification, setNotification] = useState(null);
+            const [projectHubOpen, setProjectHubOpen] = useState(false);
             const [settings, setSettings] = useState(initialSettings);
             const [writingGoals, setWritingGoals] = useState(initialGoals);
+
+            // IndexedDB for Folder Persistence
+            const getDB = () => new Promise((resolve, reject) => {
+                const request = indexedDB.open("NoveProjectHub", 1);
+                request.onupgradeneeded = () => request.result.createObjectStore("handles");
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+            const storeHandle = async (handle) => {
+                const db = await getDB();
+                const tx = db.transaction("handles", "readwrite");
+                tx.objectStore("handles").put(handle, "projectFolder");
+                return tx.complete;
+            };
+            const getStoredHandle = async () => {
+                const db = await getDB();
+                return new Promise((resolve) => {
+                    const req = db.transaction("handles").objectStore("handles").get("projectFolder");
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = () => resolve(null);
+                });
+            };
+
+            const autoSyncLatestProject = async (handle) => {
+                try {
+                    const files = [];
+                    for await (const entry of handle.values()) {
+                        if (entry.kind === 'file' && entry.name.endsWith('.zip')) files.push(entry);
+                    }
+                    if (files.length === 0) return;
+                    
+                    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                    const parseDate = (name) => {
+                        const m = name.match(/_(\d{2})_([A-Za-z]{3})_(\d{2})_(\d{2})\.zip$/);
+                        if (!m) return 0;
+                        const [_, dd, mmm, hh, mm] = m;
+                        const month = MONTHS.findIndex(mo => mo.toLowerCase() === mmm.toLowerCase());
+                        if (month === -1) return 0;
+                        const d = new Date(); d.setMonth(month); d.setDate(parseInt(dd)); d.setHours(parseInt(hh)); d.setMinutes(parseInt(mm));
+                        return d.getTime();
+                    };
+
+                    files.sort((a, b) => parseDate(b.name) - parseDate(a.name));
+                    const latest = files[0];
+                    setNotification('Found recent project: ' + latest.name + '. Loading...');
+                    
+                    const file = await latest.getFile();
+                    const zip = new JSZip();
+                    const content = await zip.loadAsync(file);
+                    let jsonFile = content.file("project_data.json");
+                    if (!jsonFile) jsonFile = content.file("nove_data.json");
+                    
+                    if (jsonFile) {
+                        const json = JSON.parse(await jsonFile.async("string"));
+                        const importedChapters = json.chapters || json.state?.chapters;
+                        const importedShortcuts = json.shortcuts || json.state?.shortcuts || [];
+                        const importedSettings = json.settings || json.state?.settings;
+                        if (importedChapters) {
+                            setChapters(importedChapters);
+                            setShortcuts(importedShortcuts);
+                            setActiveChapterId(importedChapters[0].id);
+                            if (importedSettings) setSettings(s => ({ ...s, ...importedSettings }));
+                            
+                            if (json.writingGoals) setWritingGoals(json.writingGoals);
+                            if (json.characters || (json.state && json.state.characters)) setCharacters(json.characters || json.state.characters);
+                            if (json.world || (json.state && json.state.world)) setWorld(json.world || json.state.world);
+                            if (json.plot || (json.state && json.state.plot)) setPlot(json.plot || json.state.plot);
+                            
+                            setNotification("Loaded most recent project automatically.");
+                        }
+                    }
+                } catch (e) { console.error("Auto-sync error", e); }
+            };
+
+            useEffect(() => {
+                const checkHub = async () => {
+                    const handle = await getStoredHandle();
+                    if (handle) {
+                        setPortableDirHandle(handle);
+                        if (await handle.queryPermission({ mode: 'readwrite' }) === 'granted') {
+                            autoSyncLatestProject(handle);
+                        } else {
+                            setProjectHubOpen(true);
+                        }
+                    }
+                };
+                checkHub();
+            }, []);
+
+            useEffect(() => {
+                const handleDragOver = (e) => { e.preventDefault(); e.stopPropagation(); };
+                const handleDrop = async (e) => {
+                    e.preventDefault(); e.stopPropagation();
+                    const items = e.dataTransfer.items;
+                    if (items && items[0]) {
+                        const item = items[0].webkitGetAsEntry ? items[0].webkitGetAsEntry() : null;
+                        if (item && item.isDirectory) {
+                            try {
+                                const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+                                if (handle) {
+                                    await storeHandle(handle);
+                                    setPortableDirHandle(handle);
+                                    await autoSyncLatestProject(handle);
+                                    setProjectHubOpen(false);
+                                }
+                            } catch (err) { console.error("Folder drops handled via picker due to API restrictions", err); }
+                        }
+                    }
+                };
+                window.addEventListener('dragover', handleDragOver);
+                window.addEventListener('drop', handleDrop);
+                return () => { window.removeEventListener('dragover', handleDragOver); window.removeEventListener('drop', handleDrop); };
+            }, []);
             const initialTotal = useRef(0);
             const [sessionCount, setSessionCount] = useState(0);
             const fontOptions = ["Lora", "Merriweather", "Times New Roman", "Bookman Old Style", "Georgia", "Roboto", "Open Sans", "Arial", "Inter", "Inconsolata"];
@@ -1193,9 +1313,19 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
 
             const handlePortableSave = async (forceNewFolder = false) => {
                 setIsSaving(true);
-                const syncData = { chapters: chapters, settings: settings, timestamp: new Date().toISOString(), source: 'Nove' };
+                const syncData = { 
+                    chapters: chapters, 
+                    shortcuts: shortcuts,
+                    settings: settings, 
+                    characters: characters,
+                    world: world,
+                    plot: plot,
+                    writingGoals: writingGoals,
+                    timestamp: new Date().toISOString(), 
+                    source: 'Nove' 
+                };
                 try {
-                    const zip = new jszip();
+                    const zip = new JSZip();
                     zip.file("project_data.json", JSON.stringify(syncData, null, 2));
                     const rtfFolder = zip.folder("RTF_Backups");
                     chapters.forEach(ch => {
@@ -1214,7 +1344,7 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
                     if ('showDirectoryPicker' in window) {
                         try {
                             let dirHandle = portableDirHandle;
-                            if (!dirHandle || forceNewFolder) { dirHandle = await window.showDirectoryPicker(); setPortableDirHandle(dirHandle); }
+                            if (!dirHandle || forceNewFolder) { dirHandle = await window.showDirectoryPicker(); setPortableDirHandle(dirHandle); await storeHandle(dirHandle); }
                             const fileHandle = await dirHandle.getFileHandle(filename, { create: true });
                             const writable = await fileHandle.createWritable();
                             await writable.write(blob);
@@ -1244,7 +1374,40 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
             return (
                 <div className="flex flex-col h-screen font-sans overflow-hidden transition-colors duration-300 bg-transparent">
                     {!hasAcceptedEULA && <EULAModal settings={settings} onAccept={handleAcceptEULA} />}
-                    {notification && <div className="fixed top-6 left-1/2 transform -translate-x-1/2 z-[9999] px-6 py-2 rounded-full shadow-xl toast-enter flex items-center gap-2 backdrop-blur-md border border-white/20" style={{ backgroundColor: settings.successColor, color: '#FFFFFF' }}><span className="font-bold text-sm">{notification}</span></div>}
+                    {notification && <div className="fixed top-6 left-1/2 transform -translate-x-1/2 z-[9999] px-6 py-2 rounded-full shadow-xl toast-enter flex items-center gap-2 backdrop-blur-md border border-white/20" style={{ backgroundColor: settings.accentColor || '#16a34a', color: '#FFFFFF' }}><span className="font-bold text-sm">{notification}</span></div>}
+                    {projectHubOpen && (
+                        <div className="fixed bottom-20 left-1/2 transform -translate-x-1/2 z-[999] bg-black/90 backdrop-blur-md border border-white/20 p-5 rounded-2xl shadow-2xl flex items-center gap-5 animate-in slide-in-from-bottom-6 duration-700 max-w-xl scale-105">
+                            <div className="p-3 rounded-xl shadow-inner flex items-center justify-center" style={{ backgroundColor: (settings.accentColor || '#3b82f6') + '33', color: settings.accentColor || '#3b82f6' }}>
+                                <Icons.Import className="h-8 w-8" />
+                            </div>
+                            <div className="flex-grow">
+                                <h4 className="text-white font-bold text-base leading-tight">Resume Project Workspace?</h4>
+                                <p className="text-white/70 text-sm mt-1">Reconnect your project folder to automatically load the most recent save.</p>
+                            </div>
+                            <div className="flex gap-3">
+                                <button onClick={() => setProjectHubOpen(false)} className="px-4 py-2 rounded-lg text-sm font-semibold text-white/40 hover:text-white transition-colors">Not now</button>
+                                <button 
+                                    onClick={async () => {
+                                        try {
+                                            let handle = await getStoredHandle();
+                                            if (!handle) {
+                                                handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+                                                await storeHandle(handle);
+                                            }
+                                            if (await handle.requestPermission({ mode: 'readwrite' }) === 'granted') {
+                                                await autoSyncLatestProject(handle);
+                                                setProjectHubOpen(false);
+                                            }
+                                        } catch (e) { console.error("Permission denied or error", e); }
+                                    }} 
+                                    className="px-6 py-2 rounded-xl text-sm font-bold text-white shadow-lg active:scale-95 transition-transform"
+                                    style={{ backgroundColor: settings.accentColor || '#3b82f6' }}
+                                >
+                                    Connect Folder
+                                </button>
+                            </div>
+                        </div>
+                    )}
                     <div className="flex flex-grow overflow-hidden relative">
                         <NoveManuscript chapter={activeChapter} onChange={handleContentChange} settings={settings} isFocusMode={isFocusMode} onPlaySound={playSound} notesOpen={notesOpen} onPageInfoChange={setPageInfo} isSpellcheckEnabled={isSpellcheckEnabled} searchTarget={searchTarget} />
                         {isFindReplaceOpen && <FindReplacePanel onClose={() => setIsFindReplaceOpen(false)} settings={settings} chapters={chapters} activeChapterId={activeChapterId} onNavigateMatch={handleNavigateMatch} onReplace={handleReplace} onReplaceAll={handleReplaceAll} />}

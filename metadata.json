@@ -1,6 +1,6 @@
 {
-  "name": "Novelis 7.6.21",
-  "description": "The 'Novel Operating System' for professional storytellers. 7.6.21 update includes fixed standalone exports and UI refinements.",
+  "name": "7.6.31 Novelis (Nove Cummulative Saves Folder)",
+  "description": "A \u0027Novel Operating System\u0027 featuring a horizontal \u0027infinite spread\u0027 editor. Fixed Nove.html standalone export crashes and updated UI text for blank exports.",
   "requestFramePermissions": [
     "camera",
     "microphone"

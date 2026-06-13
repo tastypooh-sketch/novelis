@@ -152,9 +152,32 @@ ipcMain.handle('select-directory', async () => {
     return filePaths[0];
 });
 
-// 3. Write ZIP to Folder (Direct Write)
+// 3. Write ZIP to Folder (Direct Write with Archiving)
 ipcMain.handle('write-zip-to-folder', async (event, folderPath, fileName, content) => {
     try {
+      // ARCHIVE EXISTING ZIPS IN ROOT (Spec 2)
+      const cumulativePath = path.join(folderPath, 'Cumulative Saves');
+      const files = fs.readdirSync(folderPath);
+      
+      // Filter for existing session zips in the root (excluding the one we are about to write)
+      const existingZips = files.filter(f => f.endsWith('.zip') && f !== fileName);
+      
+      if (existingZips.length > 0) {
+        if (!fs.existsSync(cumulativePath)) {
+          fs.mkdirSync(cumulativePath, { recursive: true });
+        }
+        
+        for (const f of existingZips) {
+          const oldPath = path.join(folderPath, f);
+          const newPath = path.join(cumulativePath, f);
+          try {
+            fs.renameSync(oldPath, newPath);
+          } catch (renameErr) {
+            console.error(`Failed to move ${f} to archive:`, renameErr);
+          }
+        }
+      }
+
       const filePath = path.join(folderPath, fileName);
       fs.writeFileSync(filePath, Buffer.from(content));
       return true;
@@ -216,28 +239,43 @@ ipcMain.handle('read-history-file', async (event, folderPath, fileName) => {
     }
 });
 
-// 4. Scan for Latest ZIP
+// 4. Scan for Latest ZIP (Spec 1)
 ipcMain.handle('scan-for-latest-zip', async (event, folderPath) => {
     try {
+        if (!fs.existsSync(folderPath)) return null;
+        
         const files = fs.readdirSync(folderPath);
-        const regex = /_(\d{2})_([A-Za-z]{3})_(\d{2})_(\d{2})\.zip$/;
+        const regex = /_(?:(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})|(\d{2})_([A-Za-z]{3})_(\d{2})_(\d{2}))\.zip$/;
         const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
         const zipFiles = files
-            .filter(f => f.endsWith('.zip') && regex.test(f))
+            .filter(f => f.endsWith('.zip'))
             .map(f => {
+                const filePath = path.join(folderPath, f);
+                const stats = fs.statSync(filePath);
+                let date = stats.mtime; // Default to FS modification time
+
                 const match = f.match(regex);
-                if (!match) return null;
-                const [_, dd, mmm, hh, mm] = match;
-                const monthIndex = months.findIndex(m => m.toLowerCase() === mmm.toLowerCase());
-                if (monthIndex === -1) return null;
-                const now = new Date();
-                const date = new Date(now.getFullYear(), monthIndex, parseInt(dd), parseInt(hh), parseInt(mm));
-                if (date > now) { date.setFullYear(date.getFullYear() - 1); }
-                return { name: f, path: path.join(folderPath, f), date: date };
+                if (match) {
+                    if (match[1]) {
+                        // Match YYYYMMDD_HHMMSS
+                        const [_, y, m, d, hh, mm, ss] = match;
+                        date = new Date(parseInt(y), parseInt(m) - 1, parseInt(d), parseInt(hh), parseInt(mm), parseInt(ss));
+                    } else if (match[7]) {
+                        // Match DD_MMM_HH_MM
+                        const [ , , , , , , , dd, mmm, hh, mm] = match;
+                        const monthIndex = months.findIndex(m => m.toLowerCase() === mmm.toLowerCase());
+                        if (monthIndex !== -1) {
+                            const now = new Date();
+                            date = new Date(now.getFullYear(), monthIndex, parseInt(dd), parseInt(hh), parseInt(mm));
+                            if (date > now) { date.setFullYear(date.getFullYear() - 1); }
+                        }
+                    }
+                }
+                
+                return { name: f, path: filePath, date: date };
             })
-            .filter(f => f !== null)
-            .sort((a, b) => b.date - a.date);
+            .sort((a, b) => b.date.getTime() - a.date.getTime());
 
         if (zipFiles.length > 0) {
             const latest = zipFiles[0];

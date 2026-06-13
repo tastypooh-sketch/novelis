@@ -759,6 +759,9 @@ export const CharactersPanel: React.FC<CharactersPanelProps> = ({
         const idsToDrag = selectedIds.has(id) ? Array.from(selectedIds) : [id];
         setDragState({ draggedIds: idsToDrag, overId: id });
         
+        // Pass character data to other components
+        e.dataTransfer.setData('characterIds', JSON.stringify(idsToDrag));
+
         const firstCharacter = characters.find(c => c.id === id);
         const ghost = createDragGhost(idsToDrag.length, settings, firstCharacter);
         document.body.appendChild(ghost);

@@ -262,7 +262,7 @@ const novelReducer = (state: INovelState, action: Action): INovelState => {
           imageColor: '#6b7280',
           ...action.payload,
         };
-        draft.characters.unshift(newCharacter);
+        draft.characters.push(newCharacter);
         break;
       }
       case 'UPDATE_CHARACTER': {

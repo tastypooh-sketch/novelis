@@ -11,21 +11,33 @@ const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Se
 export const generateTimestampedName = (projectName: string): string => {
     const safeName = projectName.replace(/[^a-z0-9]/gi, '_').substring(0, 40) || 'Untitled';
     const now = new Date();
-    const dd = String(now.getDate()).padStart(2, '0');
-    const mmm = MONTH_NAMES[now.getMonth()];
-    const hh = String(now.getHours()).padStart(2, '0');
-    const mm = String(now.getMinutes()).padStart(2, '0');
     
-    // Format: Project_Name_01_Dec_15_56.zip
-    return `${safeName}_${dd}_${mmm}_${hh}_${mm}.zip`;
+    // Format: Project_Name_YYYYMMDD_HHMMSS.zip (Spec 2 compliant)
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const hh = String(now.getHours()).padStart(2, '0');
+    const min = String(now.getMinutes()).padStart(2, '0');
+    const ss = String(now.getSeconds()).padStart(2, '0');
+    
+    return `${safeName}_${yyyy}${mm}${dd}_${hh}${min}${ss}.zip`;
 };
 
 export const parseTimestampFromFilename = (filename: string): Date | null => {
-    const regex = /_(\d{2})_([A-Za-z]{3})_(\d{2})_(\d{2})\.zip$/;
-    const match = filename.match(regex);
+    // Matches YYYYMMDD_HHMMSS
+    const regexNew = /_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})\.zip$/;
+    // Matches older DD_MMM_HH_MM
+    const regexOld = /_(\d{2})_([A-Za-z]{3})_(\d{2})_(\d{2})\.zip$/;
     
-    if (match) {
-        const [_, dd, mmm, hh, mm] = match;
+    const matchNew = filename.match(regexNew);
+    if (matchNew) {
+        const [_, y, m, d, hh, mm, ss] = matchNew;
+        return new Date(parseInt(y), parseInt(m) - 1, parseInt(d), parseInt(hh), parseInt(mm), parseInt(ss));
+    }
+
+    const matchOld = filename.match(regexOld);
+    if (matchOld) {
+        const [_, dd, mmm, hh, mm] = matchOld;
         const monthIndex = MONTH_NAMES.findIndex(m => m.toLowerCase() === mmm.toLowerCase());
         
         if (monthIndex !== -1) {
@@ -56,7 +68,8 @@ const getFaviconBase64 = async (): Promise<string> => {
     } catch (e) {
         console.warn("Failed to load favicon for Nové export", e);
     }
-    return "";
+    // Default fallback: a simple elegant book/quill SVG favicon
+    return "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23FFFFFF' d='M19 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z'/%3E%3Cpath fill='%23D1D5DB' d='M12 6H6v10.5l3-1.5 3 1.5V6z'/%3E%3C/svg%3E";
 };
 
 export const createProjectZip = async (state: INovelState, settings: EditorSettings): Promise<Blob> => {

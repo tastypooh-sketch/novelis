@@ -92,13 +92,13 @@ const GlobalStyles: React.FC<{ settings: EditorSettings }> = ({ settings }) => (
       }
       /* --- End of FIX --- */
       
-      @keyframes flash-green-glow {
+      @keyframes flash-accent-glow {
         0% { 
-            filter: drop-shadow(0 0 12px #4ade80) brightness(1.3); 
+            filter: drop-shadow(0 0 12px ${settings.accentColor || '#4ade80'}) brightness(1.3); 
             transform: scale(1.05);
         }
         50% {
-            filter: drop-shadow(0 0 20px #4ade80) brightness(1.5);
+            filter: drop-shadow(0 0 20px ${settings.accentColor || '#4ade80'}) brightness(1.5);
             transform: scale(1.1);
         }
         100% { 
@@ -107,7 +107,7 @@ const GlobalStyles: React.FC<{ settings: EditorSettings }> = ({ settings }) => (
         }
       }
       .save-flash {
-        animation: flash-green-glow 0.8s ease-in-out forwards;
+        animation: flash-accent-glow 0.8s ease-in-out forwards;
         z-index: 50;
       }
       
@@ -601,7 +601,32 @@ const App: React.FC = () => {
                 }
 
                 if (dirHandle) {
-                    // 1. Generate ZIP of whole project
+                    // 1. Archive existing Zips in root (Spec 2)
+                    try {
+                        const cumulativeDirHandle = await dirHandle.getDirectoryHandle('Cumulative Saves', { create: true });
+                        
+                        // @ts-ignore
+                        for await (const entry of dirHandle.values()) {
+                            if (entry.kind === 'file' && entry.name.endsWith('.zip')) {
+                                // In File System Access API, "moving" is often "copy then delete"
+                                // but we can use move() if supported (it's part of the spec now)
+                                try {
+                                    const file = await entry.getFile();
+                                    const newFileHandle = await cumulativeDirHandle.getFileHandle(entry.name, { create: true });
+                                    const writable = await newFileHandle.createWritable();
+                                    await writable.write(file);
+                                    await writable.close();
+                                    await dirHandle.removeEntry(entry.name);
+                                } catch (moveErr) {
+                                    console.error(`Failed to archive ${entry.name}:`, moveErr);
+                                }
+                            }
+                        }
+                    } catch (archiveErr) {
+                        console.warn("Failed to process automatic archiving:", archiveErr);
+                    }
+
+                    // 2. Generate ZIP of whole project
                     const blob = await createProjectZip(novelState, settings);
                     const fileName = generateTimestampedName(projectName);
                     

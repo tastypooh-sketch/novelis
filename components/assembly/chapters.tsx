@@ -9,6 +9,7 @@ import { ChevronDownIcon, BookOpenIcon, CameraIcon, LockClosedIconOutline, LockO
 import { isColorLight, shadeColor, getImageColor } from '../../utils/colorUtils';
 import { generateBriefingHtml } from '../../utils/manuscriptUtils';
 import { AIError } from '../common/AIError';
+import { CharactersPanel } from './characters';
 
 // --- UTILS ---
 const useAutosizeTextArea = (
@@ -251,6 +252,21 @@ const ChapterTile: React.FC<ChapterTileProps> = React.memo(({
         onUpdate(chapter.id, { isPhotoLocked: !chapter.isPhotoLocked });
     };
 
+    const handleCharacterDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        try {
+            const charIdsData = e.dataTransfer.getData('characterIds');
+            if (charIdsData) {
+                const charIds = JSON.parse(charIdsData) as string[];
+                const existingIds = chapter.characterIds || [];
+                const newIds = [...new Set([...existingIds, ...charIds])];
+                onUpdate(chapter.id, { characterIds: newIds });
+            }
+        } catch (err) {
+            console.error("Failed to parse dropped characters", err);
+        }
+    };
+
     const handleCycleAccentStyle = (e: React.MouseEvent) => {
         e.stopPropagation();
         const styles: ('left-top-ingress' | 'outline' | 'corner-diagonal')[] = ['left-top-ingress', 'outline', 'corner-diagonal'];
@@ -298,6 +314,8 @@ const ChapterTile: React.FC<ChapterTileProps> = React.memo(({
                 <input type="file" accept="image/png, image/jpeg" ref={fileInputRef} onChange={handlePhotoUpload} className="hidden" />
                 <div
                     onClick={(e) => onSelect(chapter.id, e)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={handleCharacterDrop}
                     className="relative rounded-lg shadow-md transition-shadow duration-300 ease-in-out z-10 flex flex-col border-4"
                     style={{
                         ...backgroundStyle,
@@ -558,6 +576,8 @@ const ChapterTile: React.FC<ChapterTileProps> = React.memo(({
     return (
         <div
             onClick={(e) => onSelect(chapter.id, e)}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={handleCharacterDrop}
             {...draggableProps}
             className={`relative aspect-[3/4] flex flex-col rounded-lg shadow-lg transition-all duration-200 border-4 overflow-hidden ${isDragging ? 'opacity-20 scale-90' : 'opacity-100 scale-100'}`}
             style={{
@@ -585,9 +605,21 @@ const ChapterTile: React.FC<ChapterTileProps> = React.memo(({
             </div>
 
             <div className="px-3 pb-3 pt-2 flex-grow flex flex-col min-h-0">
-                <h3 className="font-bold text-sm truncate opacity-90">
-                    {chapter.chapterNumber}. {chapter.title}
-                </h3>
+                <div className="flex items-start gap-1 min-w-0">
+                    <span className="font-bold text-sm opacity-50 flex-shrink-0">{chapter.chapterNumber}.</span>
+                    {isEditingTitle ? (
+                        <textarea
+                            ref={titleInputRef} value={localTitle} onChange={e => setLocalTitle(e.target.value)}
+                            onBlur={handleTitleUpdate} onKeyDown={handleTitleKeyDown} onClick={e => e.stopPropagation()}
+                            className="font-bold text-sm w-full p-0 border-none resize-none outline-none block bg-transparent"
+                            style={{ color: settings.textColor, lineHeight: '1.2' }} rows={1}
+                        />
+                    ) : (
+                        <h3 onClick={(e) => { e.stopPropagation(); setIsEditingTitle(true); }} className="font-bold text-sm truncate opacity-90 cursor-pointer" title={chapter.title}>
+                            {chapter.title}
+                        </h3>
+                    )}
+                </div>
                 <p className="text-[10px] opacity-60 mt-1 line-clamp-3 leading-tight italic">
                     {chapter.summary || "No summary provided."}
                 </p>
@@ -724,11 +756,13 @@ export const ChaptersPanel: React.FC<ChaptersPanelProps> = ({
             
             if (overId && overId !== dragState.overId) {
                 const targetIdx = remaining.findIndex(ch => ch.id === overId);
-                const targetChapter = remaining[targetIdx];
-                const updatedItems = itemsToMove.map(item => ({ ...item, act: targetChapter.act }));
-                remaining.splice(targetIdx, 0, ...updatedItems);
-                setIsDirty(true);
-                return [...remaining];
+                if (targetIdx !== -1) {
+                    const targetChapter = remaining[targetIdx];
+                    const updatedItems = itemsToMove.map(item => ({ ...item, act: targetChapter.act }));
+                    remaining.splice(targetIdx, 0, ...updatedItems);
+                    setIsDirty(true);
+                    return [...remaining];
+                }
             } else if (targetAct !== null && targetAct !== overAct) {
                 const updatedItems = itemsToMove.map(item => ({ ...item, act: targetAct === 0 ? undefined : targetAct }));
                 const lastInPrevActs = remaining.findLastIndex(ch => (ch.act || 0) < targetAct);
@@ -749,7 +783,11 @@ export const ChaptersPanel: React.FC<ChaptersPanelProps> = ({
 
     const acts = useMemo(() => {
         const map: Record<number, IChapter[]> = { 0: [], 1: [], 2: [], 3: [] };
-        stagedChapters.forEach(c => map[c.act || 0].push(c));
+        stagedChapters.forEach(c => {
+            if (!c) return;
+            const actNum = typeof c.act === 'number' && map[c.act] ? c.act : 0;
+            map[actNum].push(c);
+        });
         return map;
     }, [stagedChapters]);
 
@@ -829,6 +867,34 @@ export const ChaptersPanel: React.FC<ChaptersPanelProps> = ({
                         ))}
                      </div>
                 </div>
+
+                {isLinkPanelOpen && (
+                    <div className="w-80 h-full flex-shrink-0 border-l animate-in slide-in-from-right duration-500 ease-[cubic-bezier(0.2,0,0,1)]" style={{ backgroundColor: settings.toolbarBg, borderColor: settings.toolbarInputBorderColor }}>
+                        <div className="h-full flex flex-col">
+                            <div className="p-4 border-b flex items-center justify-between" style={{ borderColor: settings.toolbarInputBorderColor }}>
+                                <h3 className="font-bold text-sm uppercase tracking-widest opacity-70" style={{ color: settings.toolbarText }}>Character Linker</h3>
+                                <button onClick={onToggleLinkPanel} className="p-1 hover:bg-black/10 rounded transition-colors" style={{ color: settings.toolbarText }}>
+                                    <XIcon className="h-4 w-4" />
+                                </button>
+                            </div>
+                            <div className="flex-grow overflow-hidden">
+                                <CharactersPanel 
+                                    variant="link-panel"
+                                    characters={characters}
+                                    settings={settings}
+                                    tileBackgroundStyle={tileBackgroundStyle}
+                                    selectedIds={new Set()}
+                                    onSelect={() => {}}
+                                    onUpdate={() => {}}
+                                    onDeleteRequest={() => {}}
+                                    onSetCharacters={() => {}}
+                                    expandedCharacterId={null}
+                                    setExpandedCharacterId={() => {}}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
             
             <style>{`

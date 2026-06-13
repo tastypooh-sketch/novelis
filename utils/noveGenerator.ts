@@ -153,11 +153,21 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
             visibility: hidden;
         }
         
-        @keyframes flash-green-glow {
-            0% { filter: drop-shadow(0 0 6px #4ade80) brightness(1.1); }
+        @keyframes flash-accent-glow {
+            0% { filter: drop-shadow(0 0 10px ${settings.accentColor || '#4ade80'}) brightness(1.2); }
             100% { filter: none; }
         }
-        .save-flash { animation: flash-green-glow 1.5s ease-out forwards; }
+        .save-flash { animation: flash-accent-glow 0.8s ease-out forwards; }
+        .save-flash-green { animation: flash-accent-glow 0.8s ease-out forwards; } /* Alias for compatibility */
+
+        @keyframes save-flare {
+            0% { box-shadow: 0 0 0 0px var(--flare-color); }
+            30% { box-shadow: 0 0 0 4px var(--flare-color); }
+            100% { box-shadow: 0 0 0 0px transparent; }
+        }
+        .animate-save-flare {
+            animation: save-flare 0.8s ease-out;
+        }
 
         .book-spine-effect {
             position: fixed;
@@ -1169,7 +1179,159 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
             const [hasAcceptedEULA, setHasAcceptedEULA] = useState(() => localStorage.getItem('noveli_eula_accepted') === 'true');
             const isFirstRun = useRef(true);
             const [notification, setNotification] = useState(null);
+            const [isSaveFlaring, setIsSaveFlaring] = useState(false);
+            const [projectHubOpen, setProjectHubOpen] = useState(false);
             const [settings, setSettings] = useState(initialSettings || THEMES.Charcoal);
+            const [characters, setCharacters] = useState(initialState?.characters || []);
+            const [world, setWorld] = useState(initialState?.world || []);
+            const [plot, setPlot] = useState(initialState?.plot || []);
+
+            // IndexedDB for Folder Persistence
+            const getDB = () => new Promise((resolve, reject) => {
+                const request = indexedDB.open("NoveProjectHub", 1);
+                request.onupgradeneeded = () => request.result.createObjectStore("handles");
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+            const storeHandle = async (handle) => {
+                const db = await getDB();
+                const tx = db.transaction("handles", "readwrite");
+                tx.objectStore("handles").put(handle, "projectFolder");
+                return tx.complete;
+            };
+            const getStoredHandle = async () => {
+                const db = await getDB();
+                return new Promise((resolve) => {
+                    const req = db.transaction("handles").objectStore("handles").get("projectFolder");
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = () => resolve(null);
+                });
+            };
+
+            const autoSyncLatestProject = async (handle) => {
+                try {
+                    const files = [];
+                    for await (const entry of handle.values()) {
+                        if (entry.kind === 'file' && entry.name.endsWith('.zip')) {
+                            // Fetch file metadata for more accurate sorting
+                            const file = await entry.getFile();
+                            files.push({ entry, file, name: entry.name, mtime: file.lastModified });
+                        }
+                    }
+                    if (files.length === 0) return;
+                    
+                    const parseDate = (filename) => {
+                        // Matches YYYYMMDD_HHMMSS
+                        const regexNew = /_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})\.zip$/;
+                        // Matches older DD_MMM_HH_MM
+                        const regexOld = /_(\d{2})_([A-Za-z]{3})_(\d{2})_(\d{2})\.zip$/;
+                        const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+                        const mNew = filename.match(regexNew);
+                        if (mNew) {
+                            const [_, y, m, d, hh, mm, ss] = mNew;
+                            return new Date(parseInt(y), parseInt(m) - 1, parseInt(d), parseInt(hh), parseInt(mm), parseInt(ss)).getTime();
+                        }
+
+                        const mOld = filename.match(regexOld);
+                        if (mOld) {
+                            const [_, dd, mmm, hh, mm] = mOld;
+                            const month = MONTHS.findIndex(mo => mo.toLowerCase() === mmm.toLowerCase());
+                            if (month !== -1) {
+                                const now = new Date();
+                                const d = new Date(now.getFullYear(), month, parseInt(dd), parseInt(hh), parseInt(mm));
+                                if (d > now) { d.setFullYear(d.getFullYear() - 1); }
+                                return d.getTime();
+                            }
+                        }
+                        return 0;
+                    };
+
+                    files.sort((a, b) => {
+                        const dateA = parseDate(a.name) || a.mtime;
+                        const dateB = parseDate(b.name) || b.mtime;
+                        return dateB - dateA;
+                    });
+
+                    const latest = files[0];
+                    setNotification('Found recent project: ' + latest.name + '. Loading...');
+                    
+                    const file = latest.file;
+                    const zip = new JSZip();
+                    const content = await zip.loadAsync(file);
+                    let jsonFile = content.file("project_data.json");
+                    if (!jsonFile) jsonFile = content.file("nove_data.json");
+                    
+                    if (jsonFile) {
+                        const json = JSON.parse(await jsonFile.async("string"));
+                        const importedChapters = json.chapters || json.state?.chapters;
+                        const importedShortcuts = json.shortcuts || json.state?.shortcuts || [];
+                        const importedSettings = json.settings || json.state?.settings;
+                        if (importedChapters) {
+                            setChapters(importedChapters);
+                            setShortcuts(importedShortcuts);
+                            setActiveChapterId(importedChapters[0].id);
+                            if (importedSettings) setSettings(s => ({ ...s, ...importedSettings }));
+                            
+                            // Load additional state if available
+                            if (json.writingGoals) setWritingGoals(json.writingGoals);
+                            if (json.characters || (json.state && json.state.characters)) setCharacters(json.characters || json.state.characters);
+                            if (json.world || (json.state && json.state.world)) setWorld(json.world || json.state.world);
+                            if (json.plot || (json.state && json.state.plot)) setPlot(json.plot || json.state.plot);
+                            
+                            setNotification("Loaded most recent project automatically.");
+                        }
+                    }
+                } catch (e) { console.error("Auto-sync error", e); }
+            };
+
+            useEffect(() => {
+                const checkHub = async () => {
+                    const handle = await getStoredHandle();
+                    if (handle) {
+                        setPortableDirHandle(handle);
+                        if (await handle.queryPermission({ mode: 'readwrite' }) === 'granted') {
+                            autoSyncLatestProject(handle);
+                        } else {
+                            setProjectHubOpen(true);
+                        }
+                    }
+                };
+                checkHub();
+            }, []);
+
+            useEffect(() => {
+                const handleDragOver = (e) => { e.preventDefault(); e.stopPropagation(); };
+                const handleDrop = async (e) => {
+                    e.preventDefault(); e.stopPropagation();
+                    const items = e.dataTransfer.items;
+                    if (items && items[0]) {
+                        const item = items[0].webkitGetAsEntry ? items[0].webkitGetAsEntry() : null;
+                        if (item && item.isDirectory) {
+                            try {
+                                const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+                                if (handle) {
+                                    await storeHandle(handle);
+                                    setPortableDirHandle(handle);
+                                    await autoSyncLatestProject(handle);
+                                    setProjectHubOpen(false);
+                                }
+                            } catch (err) { console.error("Folder drops handled via picker due to API restrictions", err); }
+                        }
+                    }
+                };
+                window.addEventListener('dragover', handleDragOver);
+                window.addEventListener('drop', handleDrop);
+                return () => { window.removeEventListener('dragover', handleDragOver); window.removeEventListener('drop', handleDrop); };
+            }, []);
+
+            useEffect(() => {
+                if (notification) {
+                    const t = setTimeout(() => setNotification(null), 4000);
+                    return () => clearTimeout(t);
+                }
+            }, [notification]);
+
             const [writingGoals, setWritingGoals] = useState(initialGoals || { manuscriptGoal: 50000, dailyGoal: 2000 });
             const initialTotal = useRef(0);
             const [sessionCount, setSessionCount] = useState(0);
@@ -1332,6 +1494,7 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
                             setActiveChapterId(importedChapters[0].id);
                             if (importedSettings) setSettings(prev => ({ ...prev, ...importedSettings }));
                             setNotification("Project imported successfully!");
+                            setTimeout(() => setNotification(null), 4000);
                         } else {
                             alert("No valid chapters found in this ZIP.");
                         }
@@ -1349,7 +1512,17 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
 
             const handlePortableSave = async (forceNewFolder = false) => {
                 setIsSaving(true);
-                const syncData = { chapters: chapters, shortcuts: shortcuts, settings: settings, timestamp: new Date().toISOString(), source: 'Nové' };
+                const syncData = { 
+                    chapters: chapters, 
+                    shortcuts: shortcuts, 
+                    settings: settings, 
+                    characters: characters,
+                    world: world,
+                    plot: plot,
+                    writingGoals: writingGoals,
+                    timestamp: new Date().toISOString(), 
+                    source: 'Nové' 
+                };
                 try {
                     const zip = new JSZip();
                     zip.file("project_data.json", JSON.stringify(syncData, null, 2));
@@ -1370,20 +1543,48 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
                     if ('showDirectoryPicker' in window) {
                         try {
                             let dirHandle = portableDirHandle;
-                            if (!dirHandle || forceNewFolder) { dirHandle = await window.showDirectoryPicker(); setPortableDirHandle(dirHandle); }
+                            if (!dirHandle || forceNewFolder) { 
+                                dirHandle = await window.showDirectoryPicker(); 
+                                setPortableDirHandle(dirHandle); 
+                                await storeHandle(dirHandle);
+                            }
+
+                            // ARCHIVE EXISTING ZIPS (Spec 2)
+                            try {
+                                const cumulativeDir = await dirHandle.getDirectoryHandle('Cumulative Saves', { create: true });
+                                // @ts-ignore
+                                for await (const entry of dirHandle.values()) {
+                                    if (entry.kind === 'file' && entry.name.endsWith('.zip') && entry.name !== filename) {
+                                        try {
+                                            const file = await entry.getFile();
+                                            const newHandle = await cumulativeDir.getFileHandle(entry.name, { create: true });
+                                            const writable = await newHandle.createWritable();
+                                            await writable.write(file);
+                                            await writable.close();
+                                            await dirHandle.removeEntry(entry.name);
+                                        } catch (e) { console.warn("Failed to archive", entry.name, e); }
+                                    }
+                                }
+                            } catch (e) { console.error("Archive failure", e); }
+
                             const fileHandle = await dirHandle.getFileHandle(filename, { create: true });
                             const writable = await fileHandle.createWritable();
                             await writable.write(blob);
                             await writable.close();
+                            setIsSaveFlaring(true);
+                            setTimeout(() => setIsSaveFlaring(false), 800);
                             setNotification(\`Saved to \${dirHandle.name}/\${filename}\`);
                         } catch (err) { if (err.name !== 'AbortError') alert("Error saving: " + err); setIsSaving(false); return; }
                     } else {
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
-                        setTimeout(() => URL.revokeObjectURL(url), 1000); setNotification('Saved to Downloads');
+                        setTimeout(() => URL.revokeObjectURL(url), 1000); 
+                        setNotification('Saved to Downloads');
+                        setIsSaveFlaring(true);
+                        setTimeout(() => setIsSaveFlaring(false), 800);
                     }
                 } catch (e) { alert("Error creating sync zip: " + e); }
-                setIsSaving(false); setTimeout(() => setNotification(null), 3000);
+                setIsSaving(false);
             };
 
             useEffect(() => {
@@ -1398,9 +1599,42 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
             if (!activeChapter) return <div className="p-8 text-center">Loading Manuscript...</div>;
 
             return (
-                <div className="flex flex-col h-screen font-sans overflow-hidden transition-colors duration-300 bg-transparent">
+                <div className={'flex flex-col h-screen font-sans overflow-hidden transition-colors duration-300 bg-transparent ' + (isSaveFlaring ? 'animate-save-flare' : '')} style={{ '--flare-color': settings.accentColor }}>
                     {!hasAcceptedEULA && <EULAModal settings={settings} onAccept={handleAcceptEULA} />}
-                    {notification && <div className="fixed top-6 left-1/2 transform -translate-x-1/2 z-[9999] px-6 py-2 rounded-full shadow-xl toast-enter flex items-center gap-2 backdrop-blur-md border border-white/20" style={{ backgroundColor: settings.successColor, color: '#FFFFFF' }}><span className="font-bold text-sm">{notification}</span></div>}
+                    {notification && <div className="fixed top-6 left-1/2 transform -translate-x-1/2 z-[9999] px-6 py-2 rounded-full shadow-xl toast-enter flex items-center gap-2 backdrop-blur-md border border-white/20" style={{ backgroundColor: settings.accentColor || '#16a34a', color: '#FFFFFF' }}><span className="font-bold text-sm">{notification}</span></div>}
+                    {projectHubOpen && (
+                        <div className="fixed bottom-20 left-1/2 transform -translate-x-1/2 z-[999] bg-black/90 backdrop-blur-md border border-white/20 p-5 rounded-2xl shadow-2xl flex items-center gap-5 animate-in slide-in-from-bottom-6 duration-700 max-w-xl scale-105">
+                            <div className="p-3 rounded-xl shadow-inner flex items-center justify-center" style={{ backgroundColor: (settings.accentColor || '#3b82f6') + '33', color: settings.accentColor || '#3b82f6' }}>
+                                <Icons.Import className="h-8 w-8" />
+                            </div>
+                            <div className="flex-grow">
+                                <h4 className="text-white font-bold text-base leading-tight">Resume Project Workspace?</h4>
+                                <p className="text-white/70 text-sm mt-1">Reconnect your project folder to automatically load the most recent save.</p>
+                            </div>
+                            <div className="flex gap-3">
+                                <button onClick={() => setProjectHubOpen(false)} className="px-4 py-2 rounded-lg text-sm font-semibold text-white/40 hover:text-white transition-colors">Not now</button>
+                                <button 
+                                    onClick={async () => {
+                                        try {
+                                            let handle = await getStoredHandle();
+                                            if (!handle) {
+                                                handle = await window.showDirectoryPicker();
+                                                await storeHandle(handle);
+                                            }
+                                            if (await handle.requestPermission({ mode: 'readwrite' }) === 'granted') {
+                                                await autoSyncLatestProject(handle);
+                                                setProjectHubOpen(false);
+                                            }
+                                        } catch (e) { console.error("Permission denied or error", e); }
+                                    }} 
+                                    className="px-6 py-2 rounded-xl text-sm font-bold text-white shadow-lg active:scale-95 transition-transform"
+                                    style={{ backgroundColor: settings.accentColor || '#3b82f6' }}
+                                >
+                                    Connect Folder
+                                </button>
+                            </div>
+                        </div>
+                    )}
                     <div className="flex flex-grow overflow-hidden relative">
                         <NoveManuscript chapter={activeChapter} onChange={handleContentChange} onRenameTitle={(newTitle) => setChapters(chapters.map(c => c.id === activeChapterId ? { ...c, title: newTitle } : c))} settings={settings} isFocusMode={isFocusMode} onPlaySound={playSound} notesOpen={notesOpen} onPageInfoChange={setPageInfo} isSpellcheckEnabled={isSpellcheckEnabled} searchTarget={searchTarget} shortcuts={shortcuts} />
                         {isFindReplaceOpen && <FindReplacePanel onClose={() => setIsFindReplaceOpen(false)} settings={settings} chapters={chapters} activeChapterId={activeChapterId} onNavigateMatch={handleNavigateMatch} onReplace={handleReplace} onReplaceAll={handleReplaceAll} />}
