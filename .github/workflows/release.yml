@@ -1,5 +1,5 @@
 
-name: Build and Release Novelis 7.6.34
+name: Build and Release Novelis 7.7.04
 
 on:
   push:
@@ -42,56 +42,19 @@ jobs:
 
       - name: Build & Release (macOS Universal)
         if: matrix.os == 'macos-latest'
-        run: npm run electron:build:mac
+        run: npm run electron:build:mac -- --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build & Release (Windows Setup)
         if: matrix.os == 'windows-latest'
-        run: npm run electron:build:win
+        run: npm run electron:build:win -- --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build & Release (Linux Chromebook/Debian)
         if: matrix.os == 'ubuntu-latest'
-        run: npm run electron:build:linux
+        run: npm run electron:build:linux -- --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  release-android:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out Git repository
-        uses: actions/checkout@v6
-
-      - name: Install Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-
-      - name: Build Android App
-        run: |
-          npm run build
-          if [ ! -d "android" ]; then
-            npx cap add android
-          fi
-          npx cap sync android
-          cd android && ./gradlew assembleRelease
-
-      - name: Upload Android APK
-        uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          files: android/app/build/outputs/apk/release/app-release.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
