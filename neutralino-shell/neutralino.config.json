@@ -1,0 +1,23 @@
+{
+  "applicationId": "app.novelis.nove",
+  "version": "1.0.0",
+  "defaultMode": "window",
+  "url": "/",
+  "modes": {
+    "window": {
+      "title": "Nové by Novelis",
+      "width": 1200,
+      "height": 800,
+      "minWidth": 800,
+      "minHeight": 600,
+      "icon": "/resources/icon.png",
+      "enableInspector": true
+    }
+  },
+  "cli": {
+    "binaryName": "nove",
+    "resourcesPath": "/resources/",
+    "extensionsPath": "/extensions/",
+    "clientLibrary": "/resources/neutralino.js"
+  }
+}
