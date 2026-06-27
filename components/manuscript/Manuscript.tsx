@@ -653,8 +653,8 @@ export const Manuscript: React.FC<ManuscriptProps> = ({
             playTypewriterSound('enter'); handleContentChange(e.currentTarget.innerHTML);
             setTimeout(checkAndEnforceCaretVisibility, 10); return;
         }
-        if (!['Shift', 'Control', 'Alt', 'Meta', 'CapsLock'].includes(e.key)) {
-            if (e.key === 'Enter') playTypewriterSound('enter'); else playTypewriterSound('key');
+        if (/^[a-zA-Z ]$/.test(e.key)) {
+            playTypewriterSound('key');
         }
         if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) setTimeout(checkAndEnforceCaretVisibility, 10);
         if (e.key === 'PageDown') { e.preventDefault(); snapToSpread(Math.round((editorContainerRef.current?.scrollLeft || 0) / layout.stride) + 1, true); }

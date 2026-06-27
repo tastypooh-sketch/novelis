@@ -340,6 +340,7 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
         };
 
         const Icons = {
+            ChevronDown: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3.5 h-3.5"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>,
             Save: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>,
             Sparkles: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09-3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.898 20.562L16.25 22.5l-.648-1.938a2.25 2.25 0 01-1.473-1.473L12.25 18l1.938-.648a2.25 2.25 0 011.473 1.473L16.25 20.5l.648-1.938a2.25 2.25 0 011.473-1.473L20.25 16.5l-1.938.648a2.25 2.25 0 01-1.473 1.473z" /></svg>,
             Note: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>,
@@ -998,7 +999,7 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
                     setTimeout(checkAndEnforceCaretVisibility, 10);
                     return;
                 }
-                if (e.key === 'Enter') onPlaySound('enter'); else if (!['Shift', 'Control', 'Alt', 'Meta', 'CapsLock'].includes(e.key)) onPlaySound('key');
+                if (/^[a-zA-Z ]$/.test(e.key)) onPlaySound('key');
                 if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) setTimeout(checkAndEnforceCaretVisibility, 10);
                 if (e.key === 'PageDown') { e.preventDefault(); const currentScroll = editorContainerRef.current.scrollLeft; const currentSpread = Math.round(currentScroll / layout.stride); snapToSpread(currentSpread + 1); }
                 else if (e.key === 'PageUp') { e.preventDefault(); const currentScroll = editorContainerRef.current.scrollLeft; const currentSpread = Math.round(currentScroll / layout.stride); snapToSpread(currentSpread - 1); }
@@ -1173,6 +1174,7 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
             const [isSpellcheckEnabled, setIsSpellcheckEnabled] = useState(false);
             const [pageInfo, setPageInfo] = useState({ current: 1, total: 1 });
             const [isSaving, setIsSaving] = useState(false);
+            const [isSaveMenuOpen, setIsSaveMenuOpen] = useState(false);
             const [isImporting, setIsImporting] = useState(false);
             const [searchTarget, setSearchTarget] = useState(null);
             const [portableDirHandle, setPortableDirHandle] = useState(null);
@@ -1180,6 +1182,13 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
             const isFirstRun = useRef(true);
             const [notification, setNotification] = useState(null);
             const [isSaveFlaring, setIsSaveFlaring] = useState(false);
+
+            useEffect(() => {
+                if (!isSaveMenuOpen) return;
+                const closeMenu = () => setIsSaveMenuOpen(false);
+                document.addEventListener('click', closeMenu);
+                return () => document.removeEventListener('click', closeMenu);
+            }, [isSaveMenuOpen]);
             const [projectHubOpen, setProjectHubOpen] = useState(false);
             const [settings, setSettings] = useState(initialSettings || THEMES.Charcoal);
             const [characters, setCharacters] = useState(initialState?.characters || []);
@@ -1611,8 +1620,29 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
                                 <h4 className="text-white font-bold text-base leading-tight">Resume Project Workspace?</h4>
                                 <p className="text-white/70 text-sm mt-1">Reconnect your project folder to automatically load the most recent save.</p>
                             </div>
-                            <div className="flex gap-3">
-                                <button onClick={() => setProjectHubOpen(false)} className="px-4 py-2 rounded-lg text-sm font-semibold text-white/40 hover:text-white transition-colors">Not now</button>
+                            <div className="flex gap-2">
+                                <button onClick={() => setProjectHubOpen(false)} className="px-3 py-2 rounded-lg text-sm font-semibold text-white/40 hover:text-white transition-colors">Not now</button>
+                                <button 
+                                    onClick={async () => {
+                                        try {
+                                            const newHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+                                            if (newHandle) {
+                                                await storeHandle(newHandle);
+                                                setPortableDirHandle(newHandle);
+                                                if (await newHandle.requestPermission({ mode: 'readwrite' }) === 'granted') {
+                                                    await autoSyncLatestProject(newHandle);
+                                                    setProjectHubOpen(false);
+                                                }
+                                            }
+                                        } catch (e) {
+                                            if (e.name !== 'AbortError') console.error("Error connecting different folder", e);
+                                        }
+                                    }} 
+                                    className="px-3 py-2 rounded-xl text-sm font-semibold text-white bg-white/10 hover:bg-white/20 transition-colors border border-white/10"
+                                    title="Choose a different project folder"
+                                >
+                                    Different Folder
+                                </button>
                                 <button 
                                     onClick={async () => {
                                         try {
@@ -1627,7 +1657,7 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
                                             }
                                         } catch (e) { console.error("Permission denied or error", e); }
                                     }} 
-                                    className="px-6 py-2 rounded-xl text-sm font-bold text-white shadow-lg active:scale-95 transition-transform"
+                                    className="px-4 py-2 rounded-xl text-sm font-bold text-white shadow-lg active:scale-95 transition-transform"
                                     style={{ backgroundColor: settings.accentColor || '#3b82f6' }}
                                 >
                                     Connect Folder
@@ -1703,7 +1733,56 @@ export const generateNoveHTML = (state: INovelState, settings: EditorSettings, w
                                     {isImporting ? <Icons.Spinner /> : <Icons.Import />}
                                 </button>
                                 <input type="file" ref={importInputRef} onChange={handleImportZip} accept=".zip" className="hidden" />
-                                <button onClick={() => handlePortableSave(false)} className="flex items-center gap-2 px-4 py-1.5 rounded text-sm font-medium transition-colors hover:opacity-90" style={{backgroundColor: settings.accentColor, color: '#FFF'}} title="Save Project Snapshot (Ctrl+S)"><Icons.Save /> Save</button>
+                                
+                                <div className="relative flex items-center">
+                                    <button 
+                                        onClick={() => handlePortableSave(false)} 
+                                        onContextMenu={(e) => { e.preventDefault(); setIsSaveMenuOpen(!isSaveMenuOpen); }}
+                                        className="flex items-center gap-2 px-3 py-1.5 rounded text-sm font-medium transition-colors hover:opacity-90 text-white group" 
+                                        style={{backgroundColor: settings.accentColor}} 
+                                        title="Save Project Snapshot (Ctrl+S) - Right-click for options"
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <Icons.Save />
+                                            <span>Save</span>
+                                            <div 
+                                                className={"opacity-50 group-hover:opacity-100 transition-transform duration-200 " + (isSaveMenuOpen ? "rotate-180" : "")}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setIsSaveMenuOpen(!isSaveMenuOpen);
+                                                }}
+                                            >
+                                                <Icons.ChevronDown />
+                                            </div>
+                                        </div>
+                                    </button>
+                                    
+                                    {isSaveMenuOpen && (
+                                        <div 
+                                            className="absolute bottom-full right-0 mb-2 w-48 rounded-xl shadow-2xl p-1 border animate-in fade-in slide-in-from-bottom-2 duration-200 z-[9999] backdrop-blur-md flex flex-col"
+                                            style={{
+                                                backgroundColor: 'rgba(0, 0, 0, 0.95)',
+                                                borderColor: 'rgba(255, 255, 255, 0.15)',
+                                                color: '#FFFFFF'
+                                            }}
+                                        >
+                                            <button 
+                                                onClick={() => { setIsSaveMenuOpen(false); handlePortableSave(false); }} 
+                                                className="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold hover:bg-white/10 flex items-center gap-2 transition-colors text-white"
+                                            >
+                                                <Icons.Save />
+                                                <span>Save Snapshot</span>
+                                            </button>
+                                            <button 
+                                                onClick={() => { setIsSaveMenuOpen(false); handlePortableSave(true); }} 
+                                                className="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold hover:bg-white/10 flex items-center gap-2 transition-colors text-white"
+                                            >
+                                                <Icons.FilePlus />
+                                                <span>Save to new folder...</span>
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>

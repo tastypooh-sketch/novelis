@@ -237,7 +237,7 @@ export const generateRtfForChapters = (chapters: IChapter[]): string => {
 export const generateBriefingHtml = (chapter: IChapter, allCharacters: ICharacter[], allSnippets: ISnippet[]): string => {
     let html = `<div><strong>[ CHAPTER BRIEFING ]</strong></div>`;
     if (chapter.tagline) html += `<div><strong>Tagline:</strong> ${escapeHtml(chapter.tagline)}</div>`;
-    if (chapter.keywords && chapter.keywords.length > 0) html += `<div><strong>Keywords:</strong> ${chapter.keywords.map(escapeHtml).join(', ')}</div>`;
+    if (chapter.keywords && chapter.keywords.length > 0) html += `<div><strong>Keywords:</strong> ${escapeHtml(chapter.keywords.join(', '))}</div>`;
     const involvedCharacters = (chapter.characterIds || [])
         .map(id => allCharacters.find(c => c.id === id)?.name)
         .filter(Boolean)
@@ -311,42 +311,124 @@ export async function decodeAudioData(
   return buffer;
 }
 
+export const safeDecode = (str: string) => {
+    try {
+        return JSON.parse(decodeURIComponent(atob(str).split('').map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join('')));
+    } catch (e) {
+        console.error("Decoding error", e);
+        return null;
+    }
+};
+
+const parseFromNoveHtml = (html: string): { state: INovelState, settings?: EditorSettings } | null => {
+    // Look for the encoded data in the HTML script tags
+    const stateMatch = html.match(/const initialState = safeDecode\(['"](.*?)['"]\);/);
+    const settingsMatch = html.match(/const initialSettings = safeDecode\(['"](.*?)['"]\);/);
+    
+    if (stateMatch) {
+        const state = safeDecode(stateMatch[1]);
+        const settings = settingsMatch ? safeDecode(settingsMatch[1]) : undefined;
+        if (state && (state.chapters || state.state?.chapters)) {
+            const finalState = state.chapters ? state : state.state;
+            return { state: finalState as unknown as INovelState, settings };
+        }
+    }
+    return null;
+}
+
 export const parseNoveSync = async (file: File): Promise<{ state: INovelState, settings?: EditorSettings } | null> => {
     if (file.name.endsWith('.zip')) {
         try {
             const zip = new JSZip();
             const content = await zip.loadAsync(file);
-            let jsonFile = content.file("project_data.json");
-            if (!jsonFile) jsonFile = content.file("nove_data.json");
-            if (jsonFile) {
-                const jsonStr = await jsonFile.async("string");
+            
+            // 1. Search for project_data.json or nove_data.json at any level
+            const allFiles = Object.keys(content.files);
+            let jsonFileKey = allFiles.find(f => f.endsWith('project_data.json') || f.endsWith('nove_data.json'));
+            
+            // 2. If not found, look for ANY json that looks like a project
+            if (!jsonFileKey) {
+                for (const key of allFiles) {
+                    if (key.endsWith('.json')) {
+                        const str = await content.files[key].async("string");
+                        try {
+                            const parsed = JSON.parse(str);
+                            if (parsed && (parsed.chapters || (parsed.state && parsed.state.chapters))) {
+                                jsonFileKey = key;
+                                break;
+                            }
+                        } catch(e) {}
+                    }
+                }
+            }
+
+            if (jsonFileKey) {
+                const jsonStr = await content.files[jsonFileKey].async("string");
                 const json = JSON.parse(jsonStr);
                 let settings = undefined;
-                const settingsFile = content.file("settings.json");
+                
+                // Try to find a settings.json nearby
+                const dir = jsonFileKey.substring(0, jsonFileKey.lastIndexOf('/') + 1);
+                const settingsFile = content.file(`${dir}settings.json`) || content.file("settings.json");
+                
                 if (settingsFile) {
                     const settingsStr = await settingsFile.async("string");
                     settings = JSON.parse(settingsStr);
                 }
+                
                 if (json && (json.chapters || json.state?.chapters)) {
                     const state = json.chapters ? json : json.state;
                     return { state: state as unknown as INovelState, settings };
                 }
             }
+            
+            // 3. Check for Project_Data folder (Portable Export structure)
+            const projectDataKeys = allFiles.filter(f => f.includes('Project_Data/') && f.endsWith('.zip'));
+            if (projectDataKeys.length > 0) {
+                 // Pick the most recent/relevant backup
+                 projectDataKeys.sort().reverse();
+                 const nestedZipBlob = await content.files[projectDataKeys[0]].async("blob");
+                 return parseNoveSync(new File([nestedZipBlob], projectDataKeys[0]));
+            }
+
+            // 4. Check for embedded data in Nove.html inside the zip
+            const htmlFileKey = allFiles.find(f => f.toLowerCase().endsWith('nové.html') || f.toLowerCase().endsWith('nove.html'));
+            if (htmlFileKey) {
+                const htmlStr = await content.files[htmlFileKey].async("string");
+                const parsed = parseFromNoveHtml(htmlStr);
+                if (parsed) return parsed;
+            }
+
             throw new Error("No valid project data found in Zip.");
         } catch (err) {
             console.error("Failed to parse Zip:", err);
             throw err;
         }
+    } else if (file.name.toLowerCase().endsWith('.html')) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const html = e.target?.result as string;
+                const parsed = parseFromNoveHtml(html);
+                if (parsed) resolve(parsed);
+                else reject(new Error("Could not extract data from HTML."));
+            };
+            reader.onerror = () => reject(new Error("Failed to read HTML file."));
+            reader.readAsText(file);
+        });
     } else {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = (e) => {
                 try {
                     const json = JSON.parse(e.target?.result as string);
-                    if (json && json.chapters) {
-                        resolve({ state: json as unknown as INovelState, settings: json.settings });
+                    if (json && (json.chapters || (json.state && json.state.chapters))) {
+                        const state = json.chapters ? json : json.state;
+                        resolve({ state: state as unknown as INovelState, settings: json.settings || state.settings });
                     } else {
-                        reject(new Error("Invalid format."));
+                        reject(new Error("Invalid JSON format."));
                     }
                 } catch (err) { reject(err); }
             };
