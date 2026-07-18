@@ -105,3 +105,4 @@ Novelis utilizes the Google GenAI SDK. To use the AI features:
 ## 📄 License
 
 This project is open source. See [LICENSE](LICENSE) for details.
+ 
