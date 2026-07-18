@@ -1,5 +1,5 @@
 
-name: Build and Release Novelis 8.0.05
+name: Build and Release Novelis 8.0.06
 
 on:
   push:
