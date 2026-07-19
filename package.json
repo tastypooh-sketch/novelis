@@ -1,6 +1,6 @@
 {
   "name": "novelis-desktop",
-  "version": "8.0.06",
+  "version": "8.0.08",
   "description": "Novelis Desktop App",
   "main": "electron/main.js",
   "repository": {

@@ -381,7 +381,7 @@ export const PlotBrainstormPanel: React.FC<{
                     ) : null}
                 </div>
 
-                {error && <AIError message={error} />}
+                {error && <AIError message={error} onDismiss={() => dispatch({ type: 'SET_PLOT_BRAINSTORM_STATE', payload: { error: null } })} />}
                     </>
                 )}
             </div>

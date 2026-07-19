@@ -766,7 +766,7 @@ const CharacterTile: React.FC<CharacterTileProps> = React.memo(({
                             </button>
                         </div>
                     </div>
-                    {errorId === character.id && <AIError message={errorMessage} className="mx-4 mb-2" />}
+                    {errorId === character.id && <AIError message={errorMessage} onDismiss={() => onSetError(null)} className="mx-4 mb-2" />}
                 </div>
             </div>
         );

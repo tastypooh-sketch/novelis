@@ -488,7 +488,7 @@ export const ImportNovelModal: React.FC<ImportNovelModalProps> = ({ settings, on
                                     </div>
                                 </div>
                             )}
-                            {error && <AIError message={error} className="text-center text-sm mt-4" />}
+                            {error && <AIError message={error} onDismiss={() => setError(null)} className="text-center text-sm mt-4" />}
                         </div>
                     )}
 
@@ -544,7 +544,7 @@ export const ImportNovelModal: React.FC<ImportNovelModalProps> = ({ settings, on
                                     </button>
                                 </div>
                             )}
-                            {error && <AIError message={error} className="text-center text-sm mt-4" />}
+                            {error && <AIError message={error} onDismiss={() => setError(null)} className="text-center text-sm mt-4" />}
                         </div>
                     )}
 

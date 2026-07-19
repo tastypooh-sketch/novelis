@@ -439,7 +439,7 @@ Provide your response in Markdown format.`;
                         </div>
                     ) : error ? (
                         <div className="flex-grow flex flex-col items-center justify-center text-center">
-                            <AIError message={error} className="text-center" />
+                            <AIError message={error} onDismiss={() => setError(null)} className="text-center" />
                              <button onClick={handleStartOver} className="mt-4 px-3 py-1 text-sm rounded" style={{backgroundColor: settings.toolbarButtonBg}}>Start Over</button>
                         </div>
                     ) : aiResponse ? (
@@ -549,7 +549,7 @@ Provide your response in Markdown format.`;
                                 </button>
                             )}
                         </div>
-                        {summaryError && <AIError message={summaryError} />}
+                        {summaryError && <AIError message={summaryError} onDismiss={() => setSummaryError(null)} />}
                         {isSummarizing ? (
                              <div className="flex-grow flex flex-col items-center justify-center text-center">
                                 <SpinnerIcon className="h-8 w-8 mb-4" />

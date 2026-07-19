@@ -683,7 +683,7 @@ const ChapterTile: React.FC<ChapterTileProps> = React.memo(({
                             </button>
                         </div>
                     </footer>
-                    {errorId === chapter.id && <AIError message={errorMessage} className="mx-4 mb-2" />}
+                    {errorId === chapter.id && <AIError message={errorMessage} onDismiss={() => onSetError(null)} className="mx-4 mb-2" />}
                 </div>
             </div>
         );
@@ -1367,7 +1367,7 @@ export const ChaptersPanel: React.FC<ChaptersPanelProps> = ({
             <div className="w-full h-full flex min-h-0">
                 <div ref={scrollRef} className="flex-grow h-full overflow-y-auto p-4 scroll-smooth" onDrop={handleDragEnd} onDragOver={handleDragOver}>
                      {pacingAnalysis && <PacingHeatmap analysis={pacingAnalysis} settings={settings} />}
-                     {errorMessage && <AIError message={errorMessage} className="mb-4" />}
+                     {errorMessage && <AIError message={errorMessage} onDismiss={() => onSetError(null)} className="mb-4" />}
                      
                      {activeTab === 'chest' ? (
                         <div className="p-4">

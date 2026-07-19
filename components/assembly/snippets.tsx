@@ -211,7 +211,7 @@ const SnippetTile: React.FC<{
                         <SparklesIconOutline className="h-4 w-4" /> Suggest Placement
                     </button>
                 )}
-                {suggestionError && <AIError message={suggestionError} />}
+                {suggestionError && <AIError message={suggestionError} onDismiss={() => setSuggestionError(null)} />}
             </div>
         </div>
     );

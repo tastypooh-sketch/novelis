@@ -1,0 +1,24 @@
+If you need to push another version in the future (e.g., 8.0.07), here is the exact sequence to follow:
+Pull and sync (to avoid rejected pushes):
+code
+
+Bash
+git pull origin main --rebase
+Commit your changes:
+code
+
+Bash
+git add .
+git commit -m "Update to version 8.0.07"
+Tag the version:
+code
+
+Bash
+git tag v8.0.07
+Push the code and the tag:
+code
+
+Bash
+git push origin main
+git push origin v8.0.07
+Your build is now running on GitHub Actions and will generate the Linux, macOS, and Windows installers once completed!

@@ -559,7 +559,7 @@ export const SocialMediaPanel: React.FC<{ settings: EditorSettings }> = ({ setti
                     settings={settings}
                 />
             )}
-            {error && <AIError message={error} className="mt-4" />}
+            {error && <AIError message={error} onDismiss={() => dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { error: null } })} className="mt-4" />}
         </div>
     );
 };

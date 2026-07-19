@@ -1,6 +1,6 @@
 {
-  "name": "8.0.06 Novelis (Github)",
-  "description": "A \u0027Novel Operating System\u0027 featuring a horizontal \u0027infinite spread\u0027 editor. Fixed Nove.html standalone export crashes and updated UI text for blank exports.",
+  "name": "Novelis v8.0.08",
+  "description": "A 'Novel Operating System' featuring a horizontal 'infinite spread' editor. Fixed Nove.html standalone export crashes and updated UI text for blank exports.",
   "requestFramePermissions": [
     "camera",
     "microphone"

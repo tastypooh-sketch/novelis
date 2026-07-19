@@ -180,7 +180,7 @@ export const SpellCheckModal: React.FC<SpellCheckModalProps> = ({ settings, chap
                     </div>
                 ) : error ? (
                     <div className="flex-grow flex items-center justify-center">
-                        <AIError message={error} />
+                        <AIError message={error} onDismiss={() => setError(null)} />
                     </div>
                 ) : items.length === 0 ? (
                     <div className="flex-grow flex flex-col items-center justify-center text-center">
