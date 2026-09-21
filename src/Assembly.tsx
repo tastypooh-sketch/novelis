@@ -16,7 +16,7 @@ import { WorldPanel } from './components/assembly/world';
 import { ChroniclePanel } from './components/assembly/ChroniclePanel';
 import { PlusIcon, DocumentTextIcon, TileBackgroundIcon, ImportIcon, SparklesIconOutline } from './components/common/Icons';
 import { generateId, extractJson } from './utils/common';
-import { generateInitialChapterRtf } from './utils/manuscriptUtils';
+import { generateInitialChapterRtf, generateManuscriptRtf, downloadFile } from './utils/manuscriptUtils';
 import { getContrastColor } from './utils/colorUtils';
 import { Modal } from './components/manuscript/modals/Modal';
 import { ImportNovelModal } from './components/assembly/modals/ImportNovelModal';
@@ -111,11 +111,12 @@ interface AssemblyHeaderProps {
     onAdd: () => void;
     onSettingsChange: (newSettings: Partial<EditorSettings>) => void;
     onExport: () => void;
+    onExportManuscriptRtf: () => void;
     onImport: () => void;
     onOpenConcept: () => void;
 }
 
-const AssemblyHeader: React.FC<AssemblyHeaderProps> = ({ settings, activePanel, onPanelChange, onAdd, onSettingsChange, onExport, onImport, onOpenConcept }) => {
+const AssemblyHeader: React.FC<AssemblyHeaderProps> = ({ settings, activePanel, onPanelChange, onAdd, onSettingsChange, onExport, onExportManuscriptRtf, onImport, onOpenConcept }) => {
     const handleCycleBackground = () => {
         const styles: TileBackgroundStyle[] = ['solid', 'diagonal', 'horizontal'];
         const currentStyle = settings.assemblyTileStyle || 'solid';
@@ -239,6 +240,17 @@ const AssemblyHeader: React.FC<AssemblyHeaderProps> = ({ settings, activePanel, 
                     </div>
                  )}
                  <div className="w-px h-6 bg-gray-600 opacity-30 mx-1 hidden sm:block"></div>
+                 <button
+                    onClick={onExportManuscriptRtf}
+                    className="px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 whitespace-nowrap flex-shrink-0"
+                    style={{ backgroundColor: settings.toolbarButtonBg, color: settings.toolbarText }}
+                    onMouseEnter={e => e.currentTarget.style.backgroundColor = settings.toolbarButtonHoverBg || ''}
+                    onMouseLeave={e => e.currentTarget.style.backgroundColor = settings.toolbarButtonBg || ''}
+                    title="Export the entire manuscript as a single RTF file"
+                 >
+                    <DocumentTextIcon className="h-4 w-4" />
+                    Manuscript RTF Export
+                 </button>
                  {activePanel === 'chapters' && (
                     <button
                         onClick={onImport}
@@ -1176,12 +1188,20 @@ export const Assembly: React.FC<AssemblyProps> = ({ settings, onSettingsChange, 
         }
     };
 
+    const handleExportManuscriptRtf = useCallback(() => {
+        const rtf = generateManuscriptRtf(chapters);
+        const filename = `${settings.bookTitle || 'Manuscript'}_Full.rtf`.replace(/[^a-z0-9.]/gi, '_');
+        downloadFile(filename, rtf, 'application/rtf');
+    }, [chapters, settings.bookTitle]);
+
     return (
         <AssemblyAIProvider settings={settings}>
             <div className="h-full flex flex-col overflow-hidden" style={{ fontFamily: settings.assemblyFontFamily }}>
                 <AssemblyHeader 
                     settings={settings} activePanel={activePanel} onPanelChange={onPanelChange} onAdd={handleAdd} 
-                    onSettingsChange={onSettingsChange} onExport={() => {}} onImport={() => setIsImportModalOpen(true)}
+                    onSettingsChange={onSettingsChange} onExport={() => {}} 
+                    onExportManuscriptRtf={handleExportManuscriptRtf}
+                    onImport={() => setIsImportModalOpen(true)}
                     onOpenConcept={() => setIsConceptModalOpen(true)}
                 />
                 <div className="flex-grow min-h-0">

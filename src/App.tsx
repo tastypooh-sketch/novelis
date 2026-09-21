@@ -1063,9 +1063,11 @@ Return your response as a JSON array of strings, where each string is a single p
         try {
             const prompt = `You are an expert editor and writing assistant. The user wants to rewrite the following passage to improve the flow of ideas while strictly maintaining their original authorial voice and style.
 
+Use the provided surrounding text as a voice and style guide to ensure the rewritten variations are indistinguishable in tone and prose from the author's own work.
+
 Provide 2 distinct variations of the rewrite. Each variation should be a single cohesive passage of one or more paragraphs (matching the input structure).
 
-**Surrounding Context (for style and continuity):**
+**Surrounding Context (for style and continuity guide):**
 """
 ${context}
 """

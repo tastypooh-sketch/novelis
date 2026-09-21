@@ -607,6 +607,19 @@ export const Manuscript: React.FC<ManuscriptProps> = ({
             if (node.nodeType === Node.TEXT_NODE) {
                 const textContent = node.textContent || ''; const nativeEvent = e.nativeEvent as InputEvent; const insertedChar = nativeEvent?.data;
                 if (nativeEvent?.inputType === 'insertText') {
+                    if (insertedChar === '-') {
+                        const textBefore = textContent.substring(0, offset);
+                        if (textBefore.endsWith('--')) {
+                            const startIndex = offset - 2;
+                            node.textContent = textContent.substring(0, startIndex) + '—' + textContent.substring(offset);
+                            const newCaretPos = startIndex + 1;
+                            const nr = document.createRange(); nr.setStart(node, newCaretPos); nr.collapse(true);
+                            sel.removeAllRanges(); sel.addRange(nr);
+                            isLocalUpdate.current = true;
+                            handleContentChange(e.currentTarget.innerHTML);
+                            return;
+                        }
+                    }
                     if (insertedChar === '"' || insertedChar === "'") {
                         const textBefore = textContent.substring(0, offset - 1); const charBefore = textBefore.slice(-1);
                         const isOpen = textBefore.length === 0 || /[\s(\[{“‘]/.test(charBefore);
@@ -620,10 +633,10 @@ export const Manuscript: React.FC<ManuscriptProps> = ({
                         const textBeforeCursor = textContent.substring(0, offset - 1);
                         
                         // Auto-correct second letter capitalization (e.g., THis -> This)
-                        const capsMatch = textBeforeCursor.match(/\b([A-Z])([A-Z])([a-z]+)$/);
+                        const capsMatch = textBeforeCursor.match(/\b([A-Z])([A-Z])([a-z][a-z0-9'"]*)([.,!?;:]*)$/);
                         if (capsMatch) {
-                            const [full, first, second, rest] = capsMatch;
-                            const corrected = first + second.toLowerCase() + rest;
+                            const [full, first, second, rest, punct] = capsMatch;
+                            const corrected = first + second.toLowerCase() + rest + punct;
                             const startIndex = offset - 1 - full.length;
                             node.textContent = textContent.substring(0, startIndex) + corrected + textContent.substring(offset - 1);
                             const newCaretPos = startIndex + corrected.length + 1;

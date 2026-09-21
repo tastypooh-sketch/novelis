@@ -1,5 +1,5 @@
 
-name: Build and Release Novelis 9.0.01
+name: Build and Release Novelis Desktop
 
 on:
   push:

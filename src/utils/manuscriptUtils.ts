@@ -535,6 +535,53 @@ export const generateRtfForChapters = (chapters: IChapter[]): string => {
     return `${header}\n${fontTbl}\n${styles}\n${rtfChapters}\n}`;
 };
 
+export const generateManuscriptRtf = (chapters: IChapter[]): string => {
+    const header = `{\\rtf1\\ansi\\ansicpg1252\\deff0\\nouicompat\\deflang1033`;
+    const fontTbl = `{\\fonttbl{\\f0\\fnil\\fcharset0 Times New Roman;}}`;
+    
+    // Define stylesheet for Normal and Heading 2 styles
+    const stylesheet = `{\\stylesheet{\\s0 Normal;}{\\s2 Heading 2;}}`;
+    
+    // Base Text Formatting:
+    // Normal style (\s0), zero extra spacing (\sb0\sa0), Font: Times New Roman (\f0), 12pt (\fs24)
+    // Line Spacing: 1.16 lines (\sl278\slmult1)
+    const styles = `\\viewkind4\\uc1\\pard\\s0\\sl278\\slmult1\\sb0\\sa0\\f0\\fs24`;
+
+    const rtfChapters = chapters.map(chapter => {
+        const chapterTitleText = `${chapter.chapterNumber}. ${chapter.title}`;
+        const sanitizedTitle = escapeRtfText(chapterTitleText);
+        
+        // Chapter Titles: Heading 2 style (\s2), Bold (\b)
+        // Separated by a single empty line above and below
+        const chapterTitle = `\\par {\\pard\\s2\\b\\fs28 ${sanitizedTitle}\\par}\\par `;
+        
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = chapter.content;
+
+        const paragraphs = Array.from(tempDiv.childNodes).map((node) => {
+             if (node.nodeType === Node.ELEMENT_NODE) {
+                const el = node as HTMLElement;
+                const isBlock = ['DIV', 'P', 'SECTION', 'ARTICLE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(el.tagName);
+                if (isBlock || el.innerText.trim().length > 0) {
+                    // Paragraph Indentation: First line indent of 0.2 inches (\fi288)
+                    const indent = '\\fi288';
+                    const content = processNodeForRtf(node);
+                    const cleanContent = content.endsWith('\\par ') ? content.slice(0, -5) : content;
+                    return `{\\pard\\s0\\sl278\\slmult1\\sb0\\sa0\\qj ${indent} ${cleanContent}\\par}`;
+                }
+             } else if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) {
+                const content = escapeRtfText(node.textContent);
+                return `{\\pard\\s0\\sl278\\slmult1\\sb0\\sa0\\qj \\fi288 ${content}\\par}`;
+             }
+             return null;
+        }).filter(Boolean).join('\n');
+
+        return `${chapterTitle}${paragraphs}`;
+    }).join('\\page\n');
+
+    return `${header}\n${fontTbl}\n${stylesheet}\n${styles}\n${rtfChapters}\n}`;
+};
+
 export const generateBriefingHtml = (chapter: IChapter, allCharacters: ICharacter[], allSnippets: ISnippet[]): string => {
     let html = `<div><strong>[ CHAPTER BRIEFING: ${escapeHtml(chapter.title)} ]</strong></div>`;
     if (chapter.tagline) html += `<div><strong>Tagline:</strong> ${escapeHtml(chapter.tagline)}</div>`;
