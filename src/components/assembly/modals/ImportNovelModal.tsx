@@ -28,6 +28,14 @@ export const ImportNovelModal: React.FC<ImportNovelModalProps> = ({ settings, on
     const novelState = useNovelState();
     const dispatch = useNovelDispatch();
     const [step, setStep] = useState<1 | 2 | 3>(1);
+
+    // Sync global isOpen state for AI status banner visibility
+    useEffect(() => {
+        dispatch({ type: 'UPDATE_ASSEMBLY_VIEW_STATE', payload: { isImportModalOpen: true } });
+        return () => {
+            dispatch({ type: 'UPDATE_ASSEMBLY_VIEW_STATE', payload: { isImportModalOpen: false } });
+        };
+    }, [dispatch]);
     const [activeTab, setActiveTab] = useState<'import' | 'chest'>('import');
     const { renderContextMenu, renderTaggingModal } = useLockedChestSelection('import', settings);
     const [importType, setImportType] = useState<'text' | 'zip' | null>(null);
@@ -221,6 +229,8 @@ export const ImportNovelModal: React.FC<ImportNovelModalProps> = ({ settings, on
             return;
         }
 
+        const taskId = `import-ai-${Date.now()}`;
+        dispatch({ type: 'REGISTER_AI_TASK', payload: { id: taskId, label: "Importing and analyzing manuscript", type: 'other', status: 'working', contexts: ['modal-import'] } });
         setIsProcessing(true);
         setError(null);
         
@@ -335,11 +345,14 @@ export const ImportNovelModal: React.FC<ImportNovelModalProps> = ({ settings, on
             }
 
             await handleImportToState(newChapters, allCharacters, allWorldItems);
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'completed', label: "Import analysis complete" } } });
         } catch (e: any) {
             console.error(e);
             setError(e.message || "An error occurred during processing. Please try again.");
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'error', error: e.message || "Import analysis failed" } } });
         } finally {
             setIsProcessing(false);
+            setTimeout(() => dispatch({ type: 'UNREGISTER_AI_TASK', payload: taskId }), 5000);
         }
     };
 

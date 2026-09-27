@@ -6,6 +6,36 @@ export const hasAPIKey = (settingsKey?: string) => {
     return !!settingsKey || true; // Still return true as fallback for server-side env vars
 };
 
+export const translateAIError = (error: any): string => {
+    const message = typeof error === 'string' ? error : (error.message || '');
+    
+    if (message.includes("503") || message.includes("Service Unavailable") || message.includes("high demand")) {
+        return "The AI is currently experiencing high demand. Please try again in a few moments.";
+    }
+    
+    if (message.includes("429") || message.includes("RESOURCE_EXHAUSTED") || message.includes("Quota Exceeded")) {
+        return "You've reached the free tier limit. Please wait about 30-60 seconds, or add your own API key in Settings for higher limits.";
+    }
+    
+    if (message.includes("504") || message.includes("408") || message.includes("deadline exceeded") || message.includes("Timeout")) {
+        return "The request timed out. The manuscript segment might be too long, or the connection is unstable.";
+    }
+    
+    if (message.includes("SAFETY") || message.includes("blocked by safety settings")) {
+        return "The AI declined this request due to safety filters. Try rephrasing your notes or content.";
+    }
+    
+    if (message.includes("API_KEY_INVALID") || message.includes("invalid API key") || message.includes("401") || message.includes("Unauthorized")) {
+        return "The provided API Key is invalid or unauthorized. Please check your settings.";
+    }
+    
+    if (message.includes("Failed to fetch") || message.includes("Network Error") || message.includes("Connection Failed")) {
+        return "Connection failed. Please ensure the Novelis server is running and you have internet access.";
+    }
+
+    return message || "An unexpected AI error occurred.";
+};
+
 // Fix: Proxy Gemini calls to the server and pass the user's API key if available
 export const getAI = (settingsKey?: string) => {
     return {
@@ -33,7 +63,7 @@ export const getAI = (settingsKey?: string) => {
                         return await (window as any).electronAPI.callAI(params, headers);
                     } catch (bridgeErr: any) {
                         console.error("Electron Bridge AI Request Failed:", bridgeErr);
-                        throw bridgeErr;
+                        throw new Error(translateAIError(bridgeErr));
                     }
                 }
 
@@ -88,28 +118,13 @@ export const getAI = (settingsKey?: string) => {
                             errorMessage = `Network Error: ${lastError.message}`;
                         }
                         
-                        const errToThrow = new Error(errorMessage);
-                        (errToThrow as any).originalError = lastError;
-                        throw errToThrow;
+                        throw new Error(translateAIError(errorMessage));
                     }
                     
                     return await response.json();
                 } catch (e: any) {
                     console.error("AI Request Failed Details:", e);
-
-                    // Final catch-all for Quota errors if they aren't already formatted
-                    if (e.message?.includes("429") || e.message?.includes("RESOURCE_EXHAUSTED")) {
-                        throw new Error("Quota Exceeded: You've reached the free Gemini API tier limit. Please wait about 30-60 seconds before trying again, or use your own API key in Settings for higher limits.");
-                    }
-
-                    const isFetchError = e.message === 'Failed to fetch' || e.name === 'TypeError' || (e.originalError && (e.originalError.message === 'Failed to fetch' || e.originalError.name === 'TypeError'));
-                    
-                    if (isFetchError) {
-                        const isLocalFile = window.location.protocol === 'file:' || !window.location.origin || window.location.origin === 'null';
-                        const targetUrl = isLocalFile ? "http://127.0.0.1:3000/api/gemini/generate" : `${window.location.origin}/api/gemini/generate`;
-                        throw new Error(`Connection Failed: Unable to reach the backend at ${targetUrl}.\n\nDebug Info:\n- Origin: ${window.location.origin}\n- Protocol: ${window.location.protocol}\n- Error: ${e.message}\n\nPlease ensure the Novelis server is running.`);
-                    }
-                    throw e;
+                    throw new Error(translateAIError(e));
                 }
             }
         }

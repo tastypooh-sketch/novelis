@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo, useContext } from 'react';
 import { produce } from 'immer';
 import { Type } from "@google/genai";
-import type { EditorSettings, ICharacter, IChapter, TileBackgroundStyle, ISnippet, AssemblyPanel, Excerpt, SocialPost, AssemblyViewState, PlotBrainstormState, SynopsisState, IWorldItem, ChapterPacingInfo, Theme, RelationshipDataPoint, PlotPoint, ChekhovsGun, ICharacterRelationship, IMapLocation } from './types';
+import type { EditorSettings, ICharacter, IChapter, TileBackgroundStyle, ISnippet, AssemblyPanel, Excerpt, SocialPost, AssemblyViewState, PlotBrainstormState, SynopsisState, IWorldItem, ChapterPacingInfo, Theme, RelationshipDataPoint, PlotPoint, ChekhovsGun, ICharacterRelationship, IMapLocation, ActiveAITask } from './types';
 import { useNovelDispatch, useNovelState } from './NovelContext';
 import { AssemblyAIContext, AssemblyAIState, SnippetSuggestion } from './components/assembly/AssemblyAIContext';
 import { getAI, hasAPIKey, API_KEY_ERROR } from './utils/ai';
@@ -13,8 +13,9 @@ import { SocialMediaPanel } from './components/assembly/social';
 import { PlotBrainstormPanel } from './components/assembly/plot';
 import { SynopsisPanel } from './components/assembly/synopsis';
 import { WorldPanel } from './components/assembly/world';
+import { ScrapbookModal } from './components/assembly/modals/ScrapbookModal';
 import { ChroniclePanel } from './components/assembly/ChroniclePanel';
-import { PlusIcon, DocumentTextIcon, TileBackgroundIcon, ImportIcon, SparklesIconOutline } from './components/common/Icons';
+import { PlusIcon, DocumentTextIcon, TileBackgroundIcon, ImportIcon, SparklesIconOutline, ScrapbookIcon } from './components/common/Icons';
 import { generateId, extractJson } from './utils/common';
 import { generateInitialChapterRtf, generateManuscriptRtf, downloadFile } from './utils/manuscriptUtils';
 import { getContrastColor } from './utils/colorUtils';
@@ -114,9 +115,10 @@ interface AssemblyHeaderProps {
     onExportManuscriptRtf: () => void;
     onImport: () => void;
     onOpenConcept: () => void;
+    onOpenScrapbook: () => void;
 }
 
-const AssemblyHeader: React.FC<AssemblyHeaderProps> = ({ settings, activePanel, onPanelChange, onAdd, onSettingsChange, onExport, onExportManuscriptRtf, onImport, onOpenConcept }) => {
+const AssemblyHeader: React.FC<AssemblyHeaderProps> = ({ settings, activePanel, onPanelChange, onAdd, onSettingsChange, onExport, onExportManuscriptRtf, onImport, onOpenConcept, onOpenScrapbook }) => {
     const handleCycleBackground = () => {
         const styles: TileBackgroundStyle[] = ['solid', 'diagonal', 'horizontal'];
         const currentStyle = settings.assemblyTileStyle || 'solid';
@@ -236,6 +238,16 @@ const AssemblyHeader: React.FC<AssemblyHeaderProps> = ({ settings, activePanel, 
                             title="View Story Concept & Summary"
                         >
                             <ConceptIcon style={{ color: settings.toolbarText }} className="h-5 w-5" />
+                        </button>
+                        <button
+                            onClick={onOpenScrapbook}
+                            className="p-1.5 rounded-md flex-shrink-0 transition-all border border-dashed border-white/10"
+                            style={{ backgroundColor: settings.toolbarButtonBg }}
+                            onMouseEnter={e => e.currentTarget.style.backgroundColor = settings.toolbarButtonHoverBg || ''}
+                            onMouseLeave={e => e.currentTarget.style.backgroundColor = settings.toolbarButtonBg || ''}
+                            title="Open Scrapbook & Loose Concepts"
+                        >
+                            <ScrapbookIcon style={{ color: settings.toolbarText }} className="h-5 w-5" />
                         </button>
                     </div>
                  )}
@@ -431,7 +443,7 @@ const synopsisSuiteSchema = {
 };
 
 const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: EditorSettings }> = ({ children, settings }) => {
-    const { chapters, characters, snippets, worldItems, socialMediaState, assemblyState, plotBrainstormState, synopsisState } = useNovelState();
+    const { chapters, characters, snippets, worldItems, socialMediaState, assemblyState, plotBrainstormState, synopsisState, scrapbookState } = useNovelState();
     const dispatch = useNovelDispatch();
     const [aiState, setAiState] = useState<AssemblyAIState>({
         isGeneratingProfile: null,
@@ -456,6 +468,8 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
 
     const onGenerateProfile = async (character: ICharacter, rawNotes: string) => {
         if (!hasAPIKey(settings.geminiApiKey)) return onSetError(API_KEY_ERROR, character.id);
+        const taskId = `gen-profile-${character.id}`;
+        dispatch({ type: 'REGISTER_AI_TASK', payload: { id: taskId, label: `Generating profile: ${character.name}`, type: 'profile', status: 'working', contexts: ['assembly-characters'] } });
         setAiState(prev => ({ ...prev, isGeneratingProfile: character.id, errorMessage: null }));
         try {
             const prompt = `Based on these notes, generate a detailed character profile for "${character.name}". 
@@ -470,14 +484,41 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
             });
             const data = JSON.parse(response.text || '{}');
             if (data) dispatch({ type: 'UPDATE_CHARACTER', payload: { id: character.id, updates: { ...data, previousProfile: character.summary ? { summary: character.summary, profile: character.profile, tagline: character.tagline, keywords: character.keywords } : undefined } } });
-        } catch (e: any) { onSetError(e.message || "Failed to generate profile.", character.id); }
-        finally { setAiState(prev => ({ ...prev, isGeneratingProfile: null })); }
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'completed', label: `Profile generated: ${character.name}` } } });
+        } catch (e: any) { 
+            onSetError(e.message || "Failed to generate profile.", character.id); 
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'error', error: e.message || "Failed to generate profile." } } });
+        }
+        finally { 
+            setAiState(prev => ({ ...prev, isGeneratingProfile: null })); 
+            setTimeout(() => dispatch({ type: 'UNREGISTER_AI_TASK', payload: taskId }), 5000);
+        }
     };
 
-    const onUpdateProfile = async (character: ICharacter, manuscriptContent: string) => {
+    const onUpdateProfile = async (character: ICharacter, selectedChapterIds?: string[]) => {
         if (!hasAPIKey(settings.geminiApiKey)) return onSetError(API_KEY_ERROR, character.id);
+        const taskId = `update-profile-${character.id}`;
+        dispatch({ type: 'REGISTER_AI_TASK', payload: { id: taskId, label: `Updating profile from manuscript: ${character.name}`, type: 'profile', status: 'working', contexts: ['assembly-characters'] } });
         setAiState(prev => ({ ...prev, isGeneratingProfile: character.id, errorMessage: null }));
         try {
+            let manuscriptContent = "";
+            
+            if (selectedChapterIds && selectedChapterIds.length > 0) {
+                manuscriptContent = chapters
+                    .filter(c => selectedChapterIds.includes(c.id))
+                    .map(c => {
+                        const tempDiv = document.createElement('div');
+                        tempDiv.innerHTML = c.content;
+                        return `Chapter ${c.chapterNumber}:\n${tempDiv.innerText}\n\n`;
+                    }).join('---\n\n');
+            } else {
+                manuscriptContent = chapters.map(c => {
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = c.content;
+                    return `Chapter ${c.chapterNumber}:\n${tempDiv.innerText}\n\n`;
+                }).join('---\n\n');
+            }
+
             const prompt = `Analyze the provided manuscript segments to update the profile for character "${character.name}". Focus on consistency and evolution.
             Manuscript Segment: ${manuscriptContent.substring(0, 30000)}`;
             const response = await getAI(settings.geminiApiKey).models.generateContent({ 
@@ -490,12 +531,21 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
             });
             const data = JSON.parse(response.text || '{}');
             if (data) dispatch({ type: 'UPDATE_CHARACTER', payload: { id: character.id, updates: { ...data, previousProfile: { summary: character.summary, profile: character.profile, tagline: character.tagline, keywords: character.keywords } } } });
-        } catch (e: any) { onSetError(e.message || "Failed to update profile from manuscript.", character.id); }
-        finally { setAiState(prev => ({ ...prev, isGeneratingProfile: null })); }
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'completed', label: `Profile updated: ${character.name}` } } });
+        } catch (e: any) { 
+            onSetError(e.message || "Failed to update profile from manuscript.", character.id); 
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'error', error: e.message || "Failed to update profile." } } });
+        }
+        finally { 
+            setAiState(prev => ({ ...prev, isGeneratingProfile: null })); 
+            setTimeout(() => dispatch({ type: 'UNREGISTER_AI_TASK', payload: taskId }), 5000);
+        }
     };
 
     const onGenerateChapterDetails = async (chapter: IChapter, rawNotes: string) => {
         if (!hasAPIKey(settings.geminiApiKey)) return onSetError(API_KEY_ERROR, chapter.id);
+        const taskId = `gen-chapter-${chapter.id}`;
+        dispatch({ type: 'REGISTER_AI_TASK', payload: { id: taskId, label: `Generating details for Chapter ${chapter.chapterNumber}`, type: 'chapter', status: 'working', contexts: ['assembly-chapters'] } });
         setAiState(prev => ({ ...prev, isGeneratingChapter: chapter.id, errorMessage: null }));
         try {
             const currentTitle = (chapter.title || '').trim();
@@ -536,12 +586,21 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
 
                 dispatch({ type: 'UPDATE_CHAPTER', payload: { id: chapter.id, updates } });
             }
-        } catch (e) { onSetError("Failed to generate details.", chapter.id); }
-        finally { setAiState(prev => ({ ...prev, isGeneratingChapter: null })); }
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'completed', label: `Details generated: Chapter ${chapter.chapterNumber}` } } });
+        } catch (e) { 
+            onSetError("Failed to generate details.", chapter.id); 
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'error', error: "Failed to generate details." } } });
+        }
+        finally { 
+            setAiState(prev => ({ ...prev, isGeneratingChapter: null })); 
+            setTimeout(() => dispatch({ type: 'UNREGISTER_AI_TASK', payload: taskId }), 5000);
+        }
     };
 
     const onUpdateChapterFromManuscript = async (chapter: IChapter): Promise<Partial<IChapter> | null> => {
         if (!hasAPIKey(settings.geminiApiKey)) { onSetError(API_KEY_ERROR, chapter.id); return null; }
+        const taskId = `update-chapter-${chapter.id}`;
+        dispatch({ type: 'REGISTER_AI_TASK', payload: { id: taskId, label: `Updating Chapter ${chapter.chapterNumber} from manuscript`, type: 'chapter', status: 'working', contexts: ['assembly-chapters'] } });
         setAiState(prev => ({ ...prev, isGeneratingChapter: chapter.id, errorMessage: null }));
         try {
             const tempDiv = document.createElement('div'); tempDiv.innerHTML = chapter.content;
@@ -560,18 +619,25 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
             if (data) {
                 const updates = { ...data, previousDetails: { summary: chapter.summary, outline: chapter.outline, analysis: chapter.analysis, keywords: chapter.keywords } };
                 dispatch({ type: 'UPDATE_CHAPTER', payload: { id: chapter.id, updates } });
+                dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'completed', label: `Chapter updated from manuscript: ${chapter.chapterNumber}` } } });
                 return updates;
             }
             return null;
         } catch (e: any) { 
             onSetError(e.message || "Failed to update chapter details.", chapter.id); 
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'error', error: e.message || "Failed to update chapter details." } } });
             return null;
         }
-        finally { setAiState(prev => ({ ...prev, isGeneratingChapter: null })); }
+        finally { 
+            setAiState(prev => ({ ...prev, isGeneratingChapter: null })); 
+            setTimeout(() => dispatch({ type: 'UNREGISTER_AI_TASK', payload: taskId }), 5000);
+        }
     };
 
     const onAnalyzeSnippets = async (rawText: string, characters: ICharacter[]) => {
         if (!hasAPIKey(settings.geminiApiKey)) { onSetError(API_KEY_ERROR, 'snippets'); return false; }
+        const taskId = 'analyze-snippets';
+        dispatch({ type: 'REGISTER_AI_TASK', payload: { id: taskId, label: "Analyzing story snippets", type: 'snippet', status: 'working', contexts: ['assembly-snippets'] } });
         setAiState(prev => ({ ...prev, isGeneratingSnippets: true, errorMessage: null }));
         try {
             const prompt = `Process this raw block of text into individual story snippets. Identify the type and tag associated characters.
@@ -587,13 +653,23 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
             });
             const items = JSON.parse(response.text || '[]');
             if (items) dispatch({ type: 'ADD_SNIPPETS', payload: items.map((i: any) => ({ ...i, id: generateId(), isUsed: false })) });
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'completed', label: `Analysis complete: ${items?.length || 0} snippets extracted` } } });
             return true;
-        } catch (e: any) { onSetError(e.message || "Failed to analyze snippets.", 'snippets'); return false; }
-        finally { setAiState(prev => ({ ...prev, isGeneratingSnippets: false })); }
+        } catch (e: any) { 
+            onSetError(e.message || "Failed to analyze snippets.", 'snippets'); 
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'error', error: e.message || "Failed to analyze snippets." } } });
+            return false; 
+        }
+        finally { 
+            setAiState(prev => ({ ...prev, isGeneratingSnippets: false })); 
+            setTimeout(() => dispatch({ type: 'UNREGISTER_AI_TASK', payload: taskId }), 5000);
+        }
     };
 
     const onSuggestPlacement = async (snippet: ISnippet, chapters: IChapter[]) => {
         if (!hasAPIKey(settings.geminiApiKey)) return API_KEY_ERROR;
+        const taskId = `suggest-${snippet.id}`;
+        dispatch({ type: 'REGISTER_AI_TASK', payload: { id: taskId, label: "Suggesting placement", type: 'snippet', status: 'working', contexts: ['assembly-snippets'] } });
         try {
             const prompt = `Determine the best placement for this snippet within the existing chapter structure.
             Snippet: ${snippet.cleanedText}
@@ -607,12 +683,20 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
                     responseSchema: snippetPlacementSchema
                 } 
             });
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'completed', label: "Placement suggested" } } });
             return JSON.parse(response.text || '[]');
-        } catch (e) { return "Error finding placement suggestions."; }
+        } catch (e: any) { 
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'error', error: "Placement suggestion failed" } } });
+            return "Error finding placement suggestions."; 
+        } finally {
+            setTimeout(() => dispatch({ type: 'UNREGISTER_AI_TASK', payload: taskId }), 3000);
+        }
     };
 
     const onGenerateFullAnalysis = async () => {
         if (!hasAPIKey(settings.geminiApiKey)) return onSetError(API_KEY_ERROR, 'plot');
+        const taskId = 'full-analysis';
+        dispatch({ type: 'REGISTER_AI_TASK', payload: { id: taskId, label: "Conducting full plot and character analysis", type: 'plot', status: 'working', contexts: ['assembly-plot'] } });
         dispatch({ type: 'SET_PLOT_BRAINSTORM_STATE', payload: { isGeneratingPacingAndStructure: true, isGeneratingCharacters: true, isGeneratingOpportunities: true } });
         try {
             const chapText = chapters.map(c => `Chapter ${c.chapterNumber}: ${c.summary} [Characters Present: ${getCharacterNames(c.characterIds)}]`).join('\n');
@@ -655,12 +739,21 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
             });
             const data = JSON.parse(response.text || '{}');
             if (data) dispatch({ type: 'SET_PLOT_BRAINSTORM_STATE', payload: { pacingAndStructureAnalysis: { summary: data.pacing.summary, plotPoints: data.pacing.points.map((p: any) => ({ ...p, id: generateId() })) }, characterAnalysis: data.characterAnalysis, opportunityAnalysis: data.opportunityAnalysis } });
-        } catch (e) { onSetError("Full analysis failed.", 'plot'); }
-        finally { dispatch({ type: 'SET_PLOT_BRAINSTORM_STATE', payload: { isGeneratingPacingAndStructure: false, isGeneratingCharacters: false, isGeneratingOpportunities: false } }); }
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'completed', label: "Analysis complete" } } });
+        } catch (e) { 
+            onSetError("Full analysis failed.", 'plot'); 
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'error', error: "Full analysis failed." } } });
+        }
+        finally { 
+            dispatch({ type: 'SET_PLOT_BRAINSTORM_STATE', payload: { isGeneratingPacingAndStructure: false, isGeneratingCharacters: false, isGeneratingOpportunities: false } }); 
+            setTimeout(() => dispatch({ type: 'UNREGISTER_AI_TASK', payload: taskId }), 5000);
+        }
     };
 
     const onGenerateSocialContent = async (excerpt: Excerpt) => {
         if (!hasAPIKey(settings.geminiApiKey)) return onSetError(API_KEY_ERROR, 'social');
+        const taskId = `social-content-${excerpt.id}`;
+        dispatch({ type: 'REGISTER_AI_TASK', payload: { id: taskId, label: "Generating social media marketing content", type: 'social', status: 'working', contexts: ['assembly-social', 'modal-social'] } });
         dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { isLoading: true } });
         try {
             const chapter = chapters.find(c => c.id === excerpt.chapterId);
@@ -691,29 +784,43 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
                 const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(data.imagePrompt)}?width=1024&height=1792&nologo=true&seed=${seed}`;
                 dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { generatedImageUrl: imageUrl } });
             }
-        } catch (e: any) { onSetError(e.message || "Social content generation failed.", 'social'); }
-        finally { dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { isLoading: false } }); }
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'completed', label: "Social content ready" } } });
+        } catch (e: any) { 
+            onSetError(e.message || "Social content generation failed.", 'social'); 
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'error', error: e.message || "Social content generation failed." } } });
+        }
+        finally { 
+            dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { isLoading: false } }); 
+            setTimeout(() => dispatch({ type: 'UNREGISTER_AI_TASK', payload: taskId }), 5000);
+        }
     };
 
     const onRegenerateImage = async (imagePrompt: string, moodOnly: boolean, character?: ICharacter) => {
         if (!hasAPIKey(settings.geminiApiKey)) return null;
+        const taskId = `social-img-${Date.now()}`;
+        dispatch({ type: 'REGISTER_AI_TASK', payload: { id: taskId, label: "Generating marketing visual", type: 'social', status: 'working', contexts: ['assembly-social', 'modal-social'] } });
         dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { isLoading: true } });
         try {
             const prompt = moodOnly ? `A cinematic mood painting representing: ${imagePrompt}` : imagePrompt;
             const seed = Math.floor(Math.random() * 1000000);
             const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1792&nologo=true&seed=${seed}`;
             dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { generatedImageUrl: url } });
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'completed', label: "Visual generated" } } });
             return url;
         } catch (e: any) { 
             onSetError(e.message || "Image regeneration failed."); 
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'error', error: "Image generation failed" } } });
             return null;
         } finally { 
             dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { isLoading: false } }); 
+            setTimeout(() => dispatch({ type: 'UNREGISTER_AI_TASK', payload: taskId }), 5000);
         }
     };
 
     const onRegenerateTextAndHashtags = async (excerpt: Excerpt, platform: 'instagram' | 'tiktok') => {
         if (!hasAPIKey(settings.geminiApiKey)) return onSetError(API_KEY_ERROR, 'social');
+        const taskId = `social-text-${platform}-${excerpt.id}`;
+        dispatch({ type: 'REGISTER_AI_TASK', payload: { id: taskId, label: `Regenerating ${platform} copy`, type: 'social', status: 'working', contexts: ['assembly-social', 'modal-social'] } });
         dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { isLoading: true } });
         try {
             const prompt = `Regenerate the ${platform} post text and hashtags for this excerpt: "${excerpt.text}".
@@ -740,12 +847,21 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
                 if (platform === 'instagram') dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { generatedInstagramPost: data } });
                 else dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { generatedTiktokPost: data } });
             }
-        } catch (e) { onSetError("Text regeneration failed."); }
-        finally { dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { isLoading: false } }); }
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'completed', label: "Copy regenerated" } } });
+        } catch (e: any) { 
+            onSetError("Text regeneration failed."); 
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'error', error: "Text regeneration failed" } } });
+        }
+        finally { 
+            dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { isLoading: false } }); 
+            setTimeout(() => dispatch({ type: 'UNREGISTER_AI_TASK', payload: taskId }), 5000);
+        }
     };
 
     const onExtractExcerpts = async (chapter: IChapter, allCharacters: ICharacter[]) => {
         if (!hasAPIKey(settings.geminiApiKey)) return onSetError(API_KEY_ERROR, 'social');
+        const taskId = `extract-excerpts-${chapter.id}`;
+        dispatch({ type: 'REGISTER_AI_TASK', payload: { id: taskId, label: `Extracting teasers from Chapter ${chapter.chapterNumber}`, type: 'social', status: 'working', contexts: ['assembly-social', 'modal-social'] } });
         dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { isLoading: true } });
         try {
             const tempDiv = document.createElement('div'); tempDiv.innerHTML = chapter.content;
@@ -778,12 +894,21 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
                 const newExcerpts = items.map((i: any) => ({ ...i, id: generateId(), chapterId: chapter.id, type: 'ai' }));
                 dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { excerpts: [...socialMediaState.excerpts, ...newExcerpts] } });
             }
-        } catch (e) { onSetError("Excerpt extraction failed."); }
-        finally { dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { isLoading: false } }); }
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'completed', label: `Extracted ${items?.length || 0} teasers` } } });
+        } catch (e) { 
+            onSetError("Excerpt extraction failed."); 
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'error', error: "Excerpt extraction failed." } } });
+        }
+        finally { 
+            dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { isLoading: false } }); 
+            setTimeout(() => dispatch({ type: 'UNREGISTER_AI_TASK', payload: taskId }), 5000);
+        }
     };
 
     const onGeneratePostVariations = async (post: SocialPost, excerpt: Excerpt, platform: 'instagram' | 'tiktok') => {
         if (!hasAPIKey(settings.geminiApiKey)) return onSetError(API_KEY_ERROR, 'social');
+        const taskId = `social-variations-${platform}-${excerpt.id}`;
+        dispatch({ type: 'REGISTER_AI_TASK', payload: { id: taskId, label: `Generating ${platform} variations`, type: 'social', status: 'working', contexts: ['assembly-social', 'modal-social'] } });
         dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { isLoading: true, variationPlatform: platform } });
         try {
             const prompt = `Generate 3 distinct variations of this ${platform} post. 
@@ -812,12 +937,21 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
             });
             const items = JSON.parse(response.text || '[]');
             if (items) dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { postVariations: items } });
-        } catch (e) { onSetError("Variations generation failed."); }
-        finally { dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { isLoading: false } }); }
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'completed', label: "Variations generated" } } });
+        } catch (e: any) { 
+            onSetError("Variations generation failed."); 
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'error', error: e.message || "Variations failed" } } });
+        }
+        finally { 
+            dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { isLoading: false } }); 
+            setTimeout(() => dispatch({ type: 'UNREGISTER_AI_TASK', payload: taskId }), 5000);
+        }
     };
 
     const onRefineWorldItem = async (item: IWorldItem) => {
         if (!hasAPIKey(settings.geminiApiKey)) return onSetError(API_KEY_ERROR, item.id);
+        const taskId = `refine-world-${item.id}`;
+        dispatch({ type: 'REGISTER_AI_TASK', payload: { id: taskId, label: `Refining entry: ${item.name}`, type: 'world', status: 'working', contexts: ['assembly-world'] } });
         setAiState(prev => ({ ...prev, isGeneratingWorldItem: item.id }));
         try {
             const prompt = `Refine this world-building entry: "${item.name}" (${item.type}).
@@ -832,12 +966,21 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
             });
             const data = JSON.parse(response.text || '{}');
             if (data) dispatch({ type: 'UPDATE_WORLD_ITEM', payload: { id: item.id, updates: data } });
-        } catch (e) { onSetError("World item refinement failed.", item.id); }
-        finally { setAiState(prev => ({ ...prev, isGeneratingWorldItem: null })); }
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'completed', label: `Entry refined: ${item.name}` } } });
+        } catch (e: any) { 
+            onSetError("World item refinement failed.", item.id); 
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'error', error: e.message || "Refinement failed" } } });
+        }
+        finally { 
+            setAiState(prev => ({ ...prev, isGeneratingWorldItem: null })); 
+            setTimeout(() => dispatch({ type: 'UNREGISTER_AI_TASK', payload: taskId }), 5000);
+        }
     };
 
     const onDistillWorldNotes = async (text: string) => {
         if (!hasAPIKey(settings.geminiApiKey)) return onSetError(API_KEY_ERROR, 'distill');
+        const taskId = 'distill-world';
+        dispatch({ type: 'REGISTER_AI_TASK', payload: { id: taskId, label: "Distilling world notes", type: 'world', status: 'working', contexts: ['assembly-world'] } });
         setAiState(prev => ({ ...prev, isDistillingWorld: true }));
         try {
             const prompt = `Distill the following world-building notes into structured entries. Identify name, type, and summarize key facts.
@@ -852,12 +995,21 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
             });
             const items = JSON.parse(response.text || '[]');
             if (items) dispatch({ type: 'ADD_WORLD_ITEMS', payload: items.map((i: any) => ({ ...i, id: generateId(), description: '' })) });
-        } catch (e) { onSetError("World notes distillation failed.", 'distill'); }
-        finally { setAiState(prev => ({ ...prev, isDistillingWorld: false })); }
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'completed', label: `Distillation complete: ${items?.length || 0} items created` } } });
+        } catch (e: any) { 
+            onSetError("World notes distillation failed.", 'distill'); 
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'error', error: e.message || "Distillation failed" } } });
+        }
+        finally { 
+            setAiState(prev => ({ ...prev, isDistillingWorld: false })); 
+            setTimeout(() => dispatch({ type: 'UNREGISTER_AI_TASK', payload: taskId }), 5000);
+        }
     };
 
     const onGenerateFullSynopsis = async () => {
         if (!hasAPIKey(settings.geminiApiKey)) return onSetError(API_KEY_ERROR, 'synopsis');
+        const taskId = 'full-synopsis';
+        dispatch({ type: 'REGISTER_AI_TASK', payload: { id: taskId, label: "Generating full synopsis suite", type: 'social', status: 'working', contexts: ['assembly-synopsis'] } });
         dispatch({ type: 'SET_SYNOPSIS_STATE', payload: { isGeneratingMarketAnalysis: true, isGeneratingPromotionalContent: true, isGeneratingSynopsis: true } });
         try {
             const chapText = chapters.map(c => `Chapter ${c.chapterNumber}: ${c.summary}`).join('\n');
@@ -875,12 +1027,21 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
             });
             const data = JSON.parse(response.text || '{}');
             if (data) dispatch({ type: 'SET_SYNOPSIS_STATE', payload: data });
-        } catch (e) { onSetError("Synopsis generation failed.", 'synopsis'); }
-        finally { dispatch({ type: 'SET_SYNOPSIS_STATE', payload: { isGeneratingMarketAnalysis: false, isGeneratingPromotionalContent: false, isGeneratingSynopsis: false } }); }
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'completed', label: "Synopsis suite ready" } } });
+        } catch (e: any) { 
+            onSetError("Synopsis generation failed.", 'synopsis'); 
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'error', error: "Synopsis generation failed" } } });
+        }
+        finally { 
+            dispatch({ type: 'SET_SYNOPSIS_STATE', payload: { isGeneratingMarketAnalysis: false, isGeneratingPromotionalContent: false, isGeneratingSynopsis: false } }); 
+            setTimeout(() => dispatch({ type: 'UNREGISTER_AI_TASK', payload: taskId }), 5000);
+        }
     };
 
     const onRegenerateMarketAnalysis = async () => {
         if (!hasAPIKey(settings.geminiApiKey)) return onSetError(API_KEY_ERROR, 'synopsis');
+        const taskId = 'market-analysis';
+        dispatch({ type: 'REGISTER_AI_TASK', payload: { id: taskId, label: "Regenerating market analysis", type: 'social', status: 'working', contexts: ['assembly-synopsis'] } });
         dispatch({ type: 'SET_SYNOPSIS_STATE', payload: { isGeneratingMarketAnalysis: true } });
         try {
             const chapText = chapters.map(c => `Chapter ${c.chapterNumber}: ${c.summary}`).join('\n');
@@ -892,12 +1053,21 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
                 contents: [{ role: 'user', parts: [{ text: prompt }] }] 
             });
             if (response.text) dispatch({ type: 'SET_SYNOPSIS_STATE', payload: { marketAnalysis: response.text } });
-        } catch (e) { onSetError("Market analysis regeneration failed."); }
-        finally { dispatch({ type: 'SET_SYNOPSIS_STATE', payload: { isGeneratingMarketAnalysis: false } }); }
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'completed', label: "Market analysis updated" } } });
+        } catch (e: any) { 
+            onSetError("Market analysis regeneration failed."); 
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'error', error: "Analysis failed" } } });
+        }
+        finally { 
+            dispatch({ type: 'SET_SYNOPSIS_STATE', payload: { isGeneratingMarketAnalysis: false } }); 
+            setTimeout(() => dispatch({ type: 'UNREGISTER_AI_TASK', payload: taskId }), 5000);
+        }
     };
 
     const onRegeneratePromotionalContent = async () => {
         if (!hasAPIKey(settings.geminiApiKey)) return onSetError(API_KEY_ERROR, 'synopsis');
+        const taskId = 'promo-content';
+        dispatch({ type: 'REGISTER_AI_TASK', payload: { id: taskId, label: "Regenerating promotional content", type: 'social', status: 'working', contexts: ['assembly-synopsis'] } });
         dispatch({ type: 'SET_SYNOPSIS_STATE', payload: { isGeneratingPromotionalContent: true } });
         try {
             const chapText = chapters.map(c => `Chapter ${c.chapterNumber}: ${c.summary}`).join('\n');
@@ -909,12 +1079,21 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
                 contents: [{ role: 'user', parts: [{ text: prompt }] }] 
             });
             if (response.text) dispatch({ type: 'SET_SYNOPSIS_STATE', payload: { promotionalContent: response.text } });
-        } catch (e) { onSetError("Promotional content regeneration failed."); }
-        finally { dispatch({ type: 'SET_SYNOPSIS_STATE', payload: { isGeneratingPromotionalContent: false } }); }
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'completed', label: "Promo content updated" } } });
+        } catch (e: any) { 
+            onSetError("Promotional content regeneration failed."); 
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'error', error: "Promo generation failed" } } });
+        }
+        finally { 
+            dispatch({ type: 'SET_SYNOPSIS_STATE', payload: { isGeneratingPromotionalContent: false } }); 
+            setTimeout(() => dispatch({ type: 'UNREGISTER_AI_TASK', payload: taskId }), 5000);
+        }
     };
 
     const onRegenerateSynopsis = async () => {
         if (!hasAPIKey(settings.geminiApiKey)) return onSetError(API_KEY_ERROR, 'synopsis');
+        const taskId = 'synopsis-regen';
+        dispatch({ type: 'REGISTER_AI_TASK', payload: { id: taskId, label: "Regenerating novel synopsis", type: 'social', status: 'working', contexts: ['assembly-synopsis'] } });
         dispatch({ type: 'SET_SYNOPSIS_STATE', payload: { isGeneratingSynopsis: true } });
         try {
             const chapText = chapters.map(c => `Chapter ${c.chapterNumber}: ${c.summary}`).join('\n');
@@ -926,12 +1105,21 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
                 contents: [{ role: 'user', parts: [{ text: prompt }] }] 
             });
             if (response.text) dispatch({ type: 'SET_SYNOPSIS_STATE', payload: { synopsis: response.text } });
-        } catch (e) { onSetError("Synopsis regeneration failed."); }
-        finally { dispatch({ type: 'SET_SYNOPSIS_STATE', payload: { isGeneratingSynopsis: false } }); }
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'completed', label: "Synopsis updated" } } });
+        } catch (e: any) { 
+            onSetError("Synopsis regeneration failed."); 
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'error', error: "Synopsis failed" } } });
+        }
+        finally { 
+            dispatch({ type: 'SET_SYNOPSIS_STATE', payload: { isGeneratingSynopsis: false } }); 
+            setTimeout(() => dispatch({ type: 'UNREGISTER_AI_TASK', payload: taskId }), 5000);
+        }
     };
 
     const onInitiateNarrativeArchitect = async (premise: string, intent: string, genre: string, targetChapters: number) => {
         if (!hasAPIKey(settings.geminiApiKey)) return onSetError(API_KEY_ERROR, 'narrativeArchitect');
+        const taskId = 'narrative-architect';
+        dispatch({ type: 'REGISTER_AI_TASK', payload: { id: taskId, label: "Architecting narrative structure", type: 'plot', status: 'working', contexts: ['modal-architect'] } });
         dispatch({ type: 'SET_PLOT_BRAINSTORM_STATE', payload: { narrativeArchitect: { ...plotBrainstormState.narrativeArchitect, isGenerating: true, error: null } } });
         try {
             const existingChaptersContext = chapters
@@ -1012,13 +1200,19 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
                     } 
                 });
             }
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'completed', label: "Architecture complete" } } });
         } catch (e: any) { 
             dispatch({ type: 'SET_PLOT_BRAINSTORM_STATE', payload: { narrativeArchitect: { ...plotBrainstormState.narrativeArchitect, isGenerating: false, error: e.message } } });
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'error', error: e.message || "Architecture failed" } } });
+        } finally {
+            setTimeout(() => dispatch({ type: 'UNREGISTER_AI_TASK', payload: taskId }), 5000);
         }
     };
 
     const onExpandNarrativeArchitect = async (feedback?: string) => {
         if (!hasAPIKey(settings.geminiApiKey)) return onSetError(API_KEY_ERROR, 'narrativeArchitect');
+        const taskId = 'expand-narrative';
+        dispatch({ type: 'REGISTER_AI_TASK', payload: { id: taskId, label: "Expanding narrative structure", type: 'plot', status: 'working', contexts: ['modal-architect'] } });
         const state = plotBrainstormState.narrativeArchitect;
         dispatch({ type: 'SET_PLOT_BRAINSTORM_STATE', payload: { narrativeArchitect: { ...state, isGenerating: true, error: null } } });
         try {
@@ -1067,8 +1261,12 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
                     } 
                 });
             }
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'completed', label: "Structure expanded" } } });
         } catch (e: any) { 
             dispatch({ type: 'SET_PLOT_BRAINSTORM_STATE', payload: { narrativeArchitect: { ...state, isGenerating: false, error: e.message } } });
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'error', error: e.message || "Expansion failed" } } });
+        } finally {
+            setTimeout(() => dispatch({ type: 'UNREGISTER_AI_TASK', payload: taskId }), 5000);
         }
     };
 
@@ -1124,6 +1322,8 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
         onSetError,
         onGeneratePacingAnalysis: async () => {
              if (!hasAPIKey(settings.geminiApiKey)) return onSetError(API_KEY_ERROR, 'pacing');
+             const taskId = 'pacing-analysis';
+             dispatch({ type: 'REGISTER_AI_TASK', payload: { id: taskId, label: "Analyzing narrative pacing", type: 'plot', status: 'working', contexts: ['assembly-plot'] } });
              dispatch({ type: 'UPDATE_ASSEMBLY_VIEW_STATE', payload: { isGeneratingPacingAnalysis: true } });
              try {
                  const prompt = `Analyze the pacing of the entire novel based on chapter summaries. Score each on speed and tension.
@@ -1139,8 +1339,15 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
                  });
                  const data = JSON.parse(res.text || '[]');
                  if (data) dispatch({ type: 'UPDATE_ASSEMBLY_VIEW_STATE', payload: { pacingAnalysis: data } });
-             } catch (e) { onSetError("Pacing analysis failed."); }
-             finally { dispatch({ type: 'UPDATE_ASSEMBLY_VIEW_STATE', payload: { isGeneratingPacingAnalysis: false } }); }
+                 dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'completed', label: "Pacing analysis complete" } } });
+             } catch (e) { 
+                 onSetError("Pacing analysis failed."); 
+                 dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'error', error: "Pacing analysis failed" } } });
+             }
+             finally { 
+                 dispatch({ type: 'UPDATE_ASSEMBLY_VIEW_STATE', payload: { isGeneratingPacingAnalysis: false } }); 
+                 setTimeout(() => dispatch({ type: 'UNREGISTER_AI_TASK', payload: taskId }), 5000);
+             }
         }
     };
 
@@ -1157,13 +1364,11 @@ interface AssemblyProps {
 }
 
 export const Assembly: React.FC<AssemblyProps> = ({ settings, onSettingsChange, directoryHandle, onDirectoryHandleChange, activePanel, onPanelChange }) => {
-    const { chapters, characters, snippets, worldItems, assemblyState, plotBrainstormState, synopsisState } = useNovelState();
+    const { chapters, characters, snippets, worldItems, assemblyState, plotBrainstormState, synopsisState, scrapbookState } = useNovelState();
     const dispatch = useNovelDispatch();
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [deleteCharacterTarget, setDeleteCharacterTarget] = useState<ICharacter | null>(null);
     const [deleteChapterTarget, setDeleteChapterTarget] = useState<IChapter | null>(null);
-    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-    const [isConceptModalOpen, setIsConceptModalOpen] = useState(false);
 
     const handleSelect = useCallback((id: string, e: React.MouseEvent) => {
         setSelectedIds(prev => {
@@ -1201,8 +1406,9 @@ export const Assembly: React.FC<AssemblyProps> = ({ settings, onSettingsChange, 
                     settings={settings} activePanel={activePanel} onPanelChange={onPanelChange} onAdd={handleAdd} 
                     onSettingsChange={onSettingsChange} onExport={() => {}} 
                     onExportManuscriptRtf={handleExportManuscriptRtf}
-                    onImport={() => setIsImportModalOpen(true)}
-                    onOpenConcept={() => setIsConceptModalOpen(true)}
+                    onImport={() => dispatch({ type: 'UPDATE_ASSEMBLY_VIEW_STATE', payload: { isImportModalOpen: true } })}
+                    onOpenConcept={() => dispatch({ type: 'UPDATE_ASSEMBLY_VIEW_STATE', payload: { isConceptModalOpen: true } })}
+                    onOpenScrapbook={() => dispatch({ type: 'UPDATE_SCRAPBOOK_STATE', payload: { isOpen: true } })}
                 />
                 <div className="flex-grow min-h-0">
                     {activePanel === 'chapters' && (
@@ -1253,9 +1459,9 @@ export const Assembly: React.FC<AssemblyProps> = ({ settings, onSettingsChange, 
                         onConfirm={() => { dispatch({ type: 'DELETE_CHAPTER', payload: deleteChapterTarget.id }); setDeleteChapterTarget(null); }} 
                     />
                 )}
-                {isImportModalOpen && (
+                {assemblyState.isImportModalOpen && (
                     <ImportNovelModal 
-                        settings={settings} onClose={() => setIsImportModalOpen(false)} directoryHandle={directoryHandle} 
+                        settings={settings} onClose={() => dispatch({ type: 'UPDATE_ASSEMBLY_VIEW_STATE', payload: { isImportModalOpen: false } })} directoryHandle={directoryHandle} 
                     />
                 )}
                 {plotBrainstormState?.narrativeArchitect?.isOpen && (
@@ -1265,10 +1471,16 @@ export const Assembly: React.FC<AssemblyProps> = ({ settings, onSettingsChange, 
                         onClose={() => dispatch({ type: 'SET_PLOT_BRAINSTORM_STATE', payload: { narrativeArchitect: { ...plotBrainstormState.narrativeArchitect, isOpen: false } } })}
                     />
                 )}
-                {isConceptModalOpen && (
+                {assemblyState.isConceptModalOpen && (
                     <ConceptSummaryModal 
                         settings={settings}
-                        onClose={() => setIsConceptModalOpen(false)}
+                        onClose={() => dispatch({ type: 'UPDATE_ASSEMBLY_VIEW_STATE', payload: { isConceptModalOpen: false } })}
+                    />
+                )}
+                {scrapbookState.isOpen && (
+                    <ScrapbookModal 
+                        settings={settings}
+                        onClose={() => dispatch({ type: 'UPDATE_SCRAPBOOK_STATE', payload: { isOpen: false } })}
                     />
                 )}
             </div>

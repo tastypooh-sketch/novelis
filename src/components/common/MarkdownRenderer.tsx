@@ -1,7 +1,8 @@
 import React from 'react';
 import type { EditorSettings } from '../../types';
 
-const MarkdownRenderer: React.FC<{ source: string, settings: EditorSettings }> = React.memo(({ source, settings }) => {
+const MarkdownRenderer: React.FC<{ source: string, settings: EditorSettings, color?: string }> = React.memo(({ source, settings, color }) => {
+    const textColor = color || settings.textColor;
     const createMarkup = () => {
         if (!source) return { __html: '' };
 
@@ -23,7 +24,7 @@ const MarkdownRenderer: React.FC<{ source: string, settings: EditorSettings }> =
                     const tag = `h${Math.min(6, level + 2)}`;
                     
                     const classes = "font-semibold mt-4 mb-2";
-                    const style = `color:${settings.textColor}; font-size: ${tag === 'h3' ? '1.125rem' : '1rem'};`;
+                    const style = `color:${textColor}; font-size: ${tag === 'h3' ? '1.125rem' : '1rem'};`;
 
                     if (inList) {
                         inList = false;
@@ -54,15 +55,15 @@ const MarkdownRenderer: React.FC<{ source: string, settings: EditorSettings }> =
         return { __html: inList ? html + '</ul>' : html };
     };
 
-    const isDarkMode = !isColorLight(settings.textColor);
+    const isDarkMode = !isColorLight(textColor);
 
     return (
         <div 
             className={`prose prose-sm max-w-none leading-relaxed ${isDarkMode ? 'prose-invert' : ''}`} 
             style={{ 
-                color: settings.textColor,
-                ['--tw-prose-body' as any]: settings.textColor,
-                ['--tw-prose-headings' as any]: settings.textColor,
+                color: textColor,
+                ['--tw-prose-body' as any]: textColor,
+                ['--tw-prose-headings' as any]: textColor,
                 ['--tw-prose-bullets' as any]: settings.accentColor,
             }}
             dangerouslySetInnerHTML={createMarkup()} 

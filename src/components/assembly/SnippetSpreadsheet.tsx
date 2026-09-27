@@ -31,6 +31,7 @@ export const SnippetSpreadsheet: React.FC<SnippetSpreadsheetProps> = ({
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
     
     const [activeCharacterSelector, setActiveCharacterSelector] = useState<string | null>(null);
+    const [activeManualSendId, setActiveManualSendId] = useState<string | null>(null);
     const [suggestingId, setSuggestingId] = useState<string | null>(null);
     const [suggestionsMap, setSuggestionsMap] = useState<Record<string, any[]>>({});
     const [suggestionErrorMap, setSuggestionErrorMap] = useState<Record<string, string>>({});
@@ -413,6 +414,51 @@ export const SnippetSpreadsheet: React.FC<SnippetSpreadsheetProps> = ({
                                                     >
                                                         {isSuggesting ? <SpinnerIcon className="w-4 h-4" /> : <SparklesIconOutline className="w-4 h-4" />}
                                                     </button>
+                                                    
+                                                    <div className="relative">
+                                                        <button 
+                                                            onClick={() => setActiveManualSendId(activeManualSendId === snippet.id ? null : snippet.id)}
+                                                            className={`btn-nuanced ${activeManualSendId === snippet.id ? 'bg-black/20' : ''}`}
+                                                            title="Send to specific chapter"
+                                                            style={{ color: settings.accentColor }}
+                                                        >
+                                                            <PaperAirplaneIcon className="w-4 h-4" />
+                                                        </button>
+                                                        <AnimatePresence>
+                                                            {activeManualSendId === snippet.id && (
+                                                                <>
+                                                                    <div className="fixed inset-0 z-[100]" onClick={() => setActiveManualSendId(null)} />
+                                                                    <motion.div 
+                                                                        initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                                                                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                                                                        exit={{ opacity: 0, scale: 0.9, y: 10 }}
+                                                                        className="absolute right-0 top-full mt-1 z-[110] w-64 max-h-64 overflow-y-auto rounded-lg shadow-2xl border p-1 flex flex-col gap-1"
+                                                                        style={{ backgroundColor: tableHeaderBg, borderColor, color: tableHeaderColor }}
+                                                                    >
+                                                                        <div className="flex justify-between items-center p-2 border-b border-white/10 mb-1">
+                                                                            <span className="text-[10px] font-bold uppercase opacity-50">Send to Chapter</span>
+                                                                            <button onClick={() => setActiveManualSendId(null)} className="opacity-50 hover:opacity-100 p-0.5"><XIcon className="h-3 w-3" /></button>
+                                                                        </div>
+                                                                        {chapters.map(ch => (
+                                                                            <button 
+                                                                                key={ch.id} 
+                                                                                onClick={() => {
+                                                                                    handleSendToChapter(snippet.id, ch.id);
+                                                                                    setActiveManualSendId(null);
+                                                                                }} 
+                                                                                className="w-full text-left flex items-center justify-between p-2 rounded hover:bg-white/10 text-xs transition-colors"
+                                                                            >
+                                                                                <span className="truncate">Ch {ch.chapterNumber}: {ch.title}</span>
+                                                                                {ch.linkedSnippetIds?.includes(snippet.id) && <CheckCircleIcon className="h-3 w-3 text-green-400" />}
+                                                                            </button>
+                                                                        ))}
+                                                                        {chapters.length === 0 && <div className="text-[10px] p-2 opacity-50 text-center">No chapters found</div>}
+                                                                    </motion.div>
+                                                                </>
+                                                            )}
+                                                        </AnimatePresence>
+                                                    </div>
+
                                                     <button 
                                                         onClick={() => handleCopyToClipboard(snippet.cleanedText)}
                                                         className="btn-nuanced"

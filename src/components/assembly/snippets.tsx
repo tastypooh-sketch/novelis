@@ -49,22 +49,30 @@ const SnippetTile: React.FC<{
     const [isSuggesting, setIsSuggesting] = useState(false);
     const [suggestionError, setSuggestionError] = useState<string | null>(null);
     const [isCharacterDropdownOpen, setIsCharacterDropdownOpen] = useState(false);
+    const [isManualSendOpen, setIsManualSendOpen] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const manualSendRef = useRef<HTMLDivElement>(null);
 
     React.useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (isCharacterDropdownOpen && dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
                 setIsCharacterDropdownOpen(false);
             }
+            if (isManualSendOpen && manualSendRef.current && !manualSendRef.current.contains(event.target as Node)) {
+                setIsManualSendOpen(false);
+            }
         };
         const handleEscape = (event: KeyboardEvent) => {
             if (isCharacterDropdownOpen && event.key === 'Escape') {
                 setIsCharacterDropdownOpen(false);
             }
+            if (isManualSendOpen && event.key === 'Escape') {
+                setIsManualSendOpen(false);
+            }
         };
 
-        if (isCharacterDropdownOpen) {
+        if (isCharacterDropdownOpen || isManualSendOpen) {
             document.addEventListener('mousedown', handleClickOutside);
             document.addEventListener('keydown', handleEscape);
         }
@@ -72,7 +80,7 @@ const SnippetTile: React.FC<{
             document.removeEventListener('mousedown', handleClickOutside);
             document.removeEventListener('keydown', handleEscape);
         };
-    }, [isCharacterDropdownOpen]);
+    }, [isCharacterDropdownOpen, isManualSendOpen]);
 
     const debouncedUpdate = useDebouncedCallback((updates: Partial<ISnippet>) => {
         dispatch({ type: 'UPDATE_SNIPPET', payload: { id: snippet.id, updates } });
@@ -238,12 +246,46 @@ const SnippetTile: React.FC<{
                         })}
                     </div>
                 ) : (
-                    <button 
-                        onClick={handleSuggestPlacement}
-                        className="btn-nuanced-primary w-full py-2"
-                    >
-                        <SparklesIconOutline className="h-4 w-4" /> Suggest Placement
-                    </button>
+                    <div className="flex gap-2">
+                        <button 
+                            onClick={handleSuggestPlacement}
+                            className="btn-nuanced-primary flex-grow py-2"
+                        >
+                            <SparklesIconOutline className="h-4 w-4" /> Suggest Placement
+                        </button>
+                        <div className="relative" ref={manualSendRef}>
+                            <button 
+                                onClick={() => setIsManualSendOpen(p => !p)}
+                                className={`btn-nuanced p-2 h-full border ${isManualSendOpen ? 'bg-black/20' : ''}`}
+                                title="Send to specific chapter"
+                                style={{ borderColor: `${settings.accentColor}40`, color: settings.accentColor }}
+                            >
+                                <PaperAirplaneIcon className="h-4 w-4" />
+                            </button>
+                            {isManualSendOpen && (
+                                <div className="absolute bottom-full right-0 mb-2 w-64 max-h-64 overflow-y-auto p-2 rounded-lg shadow-xl z-30 flex flex-col gap-1 border" style={{backgroundColor: settings.dropdownBg, color: settings.textColor, borderColor: settings.toolbarInputBorderColor}}>
+                                    <div className="flex justify-between items-center p-2 border-b border-white/10 mb-1">
+                                        <span className="text-[10px] font-bold uppercase opacity-50">Send to Chapter</span>
+                                        <button onClick={() => setIsManualSendOpen(false)} className="opacity-50 hover:opacity-100 p-0.5"><XIcon className="h-3 w-3" /></button>
+                                    </div>
+                                    {allChapters.map(ch => (
+                                        <button 
+                                            key={ch.id} 
+                                            onClick={() => {
+                                                handleSendToChapter(ch.id);
+                                                setIsManualSendOpen(false);
+                                            }} 
+                                            className="w-full text-left flex items-center justify-between p-2 rounded hover:bg-white/10 text-xs transition-colors"
+                                        >
+                                            <span className="truncate">Ch {ch.chapterNumber}: {ch.title}</span>
+                                            {ch.linkedSnippetIds?.includes(snippet.id) && <CheckCircleIcon className="h-3 w-3 text-green-400" />}
+                                        </button>
+                                    ))}
+                                    {allChapters.length === 0 && <div className="text-[10px] p-2 opacity-50 text-center">No chapters found</div>}
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 )}
                 {suggestionError && <AIError message={suggestionError} onDismiss={() => setSuggestionError(null)} />}
             </div>

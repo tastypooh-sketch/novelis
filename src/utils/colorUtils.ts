@@ -11,13 +11,14 @@ export const isColorLight = (hexColor: string | undefined): boolean => {
     const rgb = hexToRgb(hexColor);
     if (!rgb) return true;
     const [r, g, b] = rgb;
-    // Using the HSP color model for better perceived brightness
-    const hsp = Math.sqrt(
-        0.299 * (r * r) +
-        0.587 * (g * g) +
-        0.114 * (b * b)
-    );
-    return hsp > 127.5;
+    // Improved luminance calculation using linear RGB for better accuracy
+    // Standard relative luminance formula (WCAG 2.0)
+    const normalize = (c: number) => {
+        const s = c / 255;
+        return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+    };
+    const luminance = 0.2126 * normalize(r) + 0.7152 * normalize(g) + 0.0722 * normalize(b);
+    return luminance > 0.179; // Standard threshold for white vs black text
 };
 
 export const getContrastColor = (hexColor: string | undefined): string => {
@@ -33,28 +34,26 @@ export const harmonizeColor = (sourceHex: string, themeHex: string, isDarkMode: 
     const themeRgb = hexToRgb(themeHex);
     if (!sourceRgb || !themeRgb) return sourceHex;
 
-    const [sh, ss, sl] = rgbToHsl(sourceRgb[0], sourceRgb[1], sourceRgb[2]);
+    let [sh, ss, sl] = rgbToHsl(sourceRgb[0], sourceRgb[1], sourceRgb[2]);
     const [, , tl] = rgbToHsl(themeRgb[0], themeRgb[1], themeRgb[2]);
 
-    // Reduce saturation for subtlety
-    const targetS = Math.min(ss, 0.25); 
+    // BOOST saturation and luminance for vibrancy, avoiding muted/muddy results
+    ss = Math.min(1.0, ss * 1.5); // Boost saturation
     
-    // Adjust lightness to be slightly different from the theme but not too stark
-    // If theme is dark, we want the tile to be slightly lighter or darker than theme bg
-    // If theme is light, we want the tile to be slightly darker or lighter
+    // Adjust lightness to be distinct from the theme but still vibrant
     let targetL = sl;
     if (isDarkMode) {
-        // In dark mode, keep it dark but maybe a bit more "colored"
-        targetL = Math.max(0.15, Math.min(0.35, sl));
+        // In dark mode, ensure it's not too dark to lose the hue
+        targetL = Math.max(0.25, Math.min(0.45, sl));
     } else {
-        // In light mode, keep it light/pastel
-        targetL = Math.max(0.85, Math.min(0.95, sl));
+        // In light mode, ensure it's distinct enough
+        targetL = Math.max(0.80, Math.min(0.95, sl));
     }
 
-    // Mix in a bit of the theme's lightness to harmonize
-    targetL = (targetL * 0.7) + (tl * 0.3);
+    // Harmonize slightly with theme but maintain its own character
+    targetL = (targetL * 0.8) + (tl * 0.2);
 
-    return hslToHex(sh, targetS, targetL);
+    return hslToHex(sh, ss, targetL);
 };
 
 export const rgbToHsl = (r: number, g: number, b: number): [number, number, number] => {
@@ -127,30 +126,42 @@ export const getImageColor = (imageUrl: string): Promise<string> => {
                 ctx.drawImage(img, 0, 0, size, size);
                 
                 const imageData = ctx.getImageData(0, 0, size, size).data;
-                const colorCounts: { [key: string]: number } = {};
+                const colorCounts: { [key: string]: { count: number, original: [number, number, number], saturation: number } } = {};
                 const quantization = 32;
 
                 for (let i = 0; i < imageData.length; i += 4) {
-                    const r = Math.round(imageData[i] / quantization) * quantization;
-                    const g = Math.round(imageData[i+1] / quantization) * quantization;
-                    const b = Math.round(imageData[i+2] / quantization) * quantization;
+                    const r = imageData[i], g = imageData[i + 1], b = imageData[i + 2];
                     
                     if (imageData[i+3] < 128) continue; // skip transparent pixels
-                    if (r > 240 && g > 240 && b > 240) continue; // skip whites
-                    if (r < 15 && g < 15 && b < 15) continue; // skip blacks
+                    if (r > 245 && g > 245 && b > 245) continue; // skip whites
+                    if (r < 10 && g < 10 && b < 10) continue; // skip blacks
                     
-                    const key = `${r},${g},${b}`;
-                    colorCounts[key] = (colorCounts[key] || 0) + 1;
+                    const saturation = Math.max(r, g, b) - Math.min(r, g, b);
+                    if (saturation < 30) continue; // Skip greyish/muted colors
+
+                    const qr = Math.round(r / quantization) * quantization;
+                    const qg = Math.round(g / quantization) * quantization;
+                    const qb = Math.round(b / quantization) * quantization;
+                    
+                    const key = `${qr},${qg},${qb}`;
+                    if (!colorCounts[key]) {
+                        colorCounts[key] = { count: 0, original: [r, g, b], saturation };
+                    }
+                    colorCounts[key].count++;
                 }
 
-                const sortedColors = Object.keys(colorCounts).sort((a, b) => colorCounts[b] - colorCounts[a]);
+                // Sort by a combination of frequency and saturation to favor vibrant colors
+                const sortedKeys = Object.keys(colorCounts).sort((a, b) => {
+                    const scoreA = colorCounts[a].count * (1 + colorCounts[a].saturation / 255);
+                    const scoreB = colorCounts[b].count * (1 + colorCounts[b].saturation / 255);
+                    return scoreB - scoreA;
+                });
                 
-                const toHex = (rgbString: string) => {
-                    const [r, g, b] = rgbString.split(',').map(Number);
-                    return `#${('0' + r.toString(16)).slice(-2)}${('0' + g.toString(16)).slice(-2)}${('0' + b.toString(16)).slice(-2)}`;
+                const toHex = (rgb: [number, number, number]) => {
+                    return `#${('0' + rgb[0].toString(16)).slice(-2)}${('0' + rgb[1].toString(16)).slice(-2)}${('0' + rgb[2].toString(16)).slice(-2)}`;
                 };
 
-                const imageColor = sortedColors.length > 0 ? toHex(sortedColors[0]) : '#374151';
+                const imageColor = sortedKeys.length > 0 ? toHex(colorCounts[sortedKeys[0]].original) : '#374151';
 
                 resolve(imageColor);
             } catch (e: any) {
@@ -159,6 +170,88 @@ export const getImageColor = (imageUrl: string): Promise<string> => {
                 } else {
                     reject(e);
                 }
+            }
+        };
+        img.onerror = () => reject(new Error(`Failed to load image: ${imageUrl}`));
+        img.src = imageUrl;
+    });
+};
+
+export const getTileColorsFromImage = (imageUrl: string): Promise<{ primary: string, accent: string }> => {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'Anonymous';
+        img.onload = () => {
+            try {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                if (!ctx) return reject(new Error('Canvas context failed'));
+                
+                const size = 64;
+                canvas.width = size;
+                canvas.height = size;
+                ctx.drawImage(img, 0, 0, size, size);
+                
+                const imageData = ctx.getImageData(0, 0, size, size).data;
+                const colorCounts: { [key: string]: { count: number, original: [number, number, number] } } = {};
+                const quantization = 32;
+
+                for (let i = 0; i < imageData.length; i += 4) {
+                    if (imageData[i + 3] < 128) continue;
+                    const r = imageData[i], g = imageData[i + 1], b = imageData[i + 2];
+                    const saturation = Math.max(r, g, b) - Math.min(r, g, b);
+                    if (saturation < 25) continue; 
+
+                    const qr = Math.round(r / quantization) * quantization;
+                    const qg = Math.round(g / quantization) * quantization;
+                    const qb = Math.round(b / quantization) * quantization;
+                    const key = `${qr},${qg},${qb}`;
+
+                    if (!colorCounts[key]) {
+                        colorCounts[key] = { count: 0, original: [r, g, b] };
+                    }
+                    colorCounts[key].count++;
+                }
+
+                const sortedColors = Object.keys(colorCounts).sort((a, b) => colorCounts[b].count - colorCounts[a].count);
+                
+                if (sortedColors.length === 0) {
+                    resolve({ primary: '#374151', accent: '#4A90E2' });
+                    return;
+                }
+
+                const dominantRgb = colorCounts[sortedColors[0]].original;
+                const [r, g, b] = dominantRgb;
+                const [h, s, l] = rgbToHsl(r, g, b);
+                const primary = hslToHex(h, s, l);
+
+                let accentH = h;
+                let accentS = s;
+                let accentL = l;
+
+                if (sortedColors.length > 1) {
+                    const accentRgb = colorCounts[sortedColors[1]].original;
+                    const [ah, as, al] = rgbToHsl(accentRgb[0], accentRgb[1], accentRgb[2]);
+                    if (Math.abs(al - l) > 0.15 || Math.abs(ah - h) > 0.15) {
+                        accentH = ah;
+                        accentS = as;
+                        accentL = al;
+                    } else {
+                        accentH = (h + 0.3) % 1;
+                        accentS = Math.max(0.6, s);
+                        accentL = l < 0.5 ? 0.6 : 0.4;
+                    }
+                } else {
+                    accentH = (h + 0.3) % 1;
+                    accentS = Math.max(0.6, s);
+                    accentL = l < 0.5 ? 0.6 : 0.4;
+                }
+
+                const accent = hslToHex(accentH, Math.max(0.5, accentS), Math.min(0.7, Math.max(0.3, accentL)));
+
+                resolve({ primary, accent });
+            } catch (e: any) {
+                reject(e);
             }
         };
         img.onerror = () => reject(new Error(`Failed to load image: ${imageUrl}`));

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import ReactDOM from 'react-dom/client';
 import { Manuscript } from './Manuscript';
 import { Assembly } from './Assembly';
-import type { EditorSettings, ToolbarVisibility, ICharacter, IChapter, Shortcut, WritingGoals, AssemblyPanel, GalleryItem } from './types';
+import type { EditorSettings, ToolbarVisibility, ICharacter, IChapter, Shortcut, WritingGoals, AssemblyPanel, GalleryItem, ActiveAITask } from './types';
 import { useNovelState, useNovelDispatch } from './NovelContext';
 import { generateId, extractJson } from './utils/common';
 import { WhatIfModal } from './components/common/WhatIfModal';
@@ -12,6 +12,7 @@ import { getImageColors } from './utils/colorUtils';
 import { Type } from "@google/genai";
 import { getAI } from './utils/ai';
 import { TitleBar } from './components/common/TitleBar';
+import { AIStatusBanner } from './components/common/AIStatusBanner';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { CommandPalette } from './components/common/CommandPalette';
 import { EULAModal } from './components/common/EULAModal';
@@ -342,8 +343,26 @@ const App: React.FC = () => {
         novelStateRef.current = novelState;
     }, [novelState]);
 
-    const { chapters, whatIfState, rewriteState, shortcuts, socialMediaState } = novelState;
+    const { chapters, whatIfState, rewriteState, shortcuts, socialMediaState, scrapbookState, assemblyState, plotBrainstormState, consistencyAuditState } = novelState;
     const dispatch = useNovelDispatch();
+
+    const activeContexts = useMemo(() => {
+        // Modals take absolute precedence for AI status visibility
+        if (whatIfState.isOpen) return ['modal-what-if'];
+        if (rewriteState.isOpen) return ['modal-rewrite'];
+        if (assemblyState.isImportModalOpen) return ['modal-import'];
+        if (plotBrainstormState.narrativeArchitect.isOpen) return ['modal-architect'];
+        if (socialMediaState.isOpen) return ['modal-social'];
+        if (consistencyAuditState.isOpen) return ['modal-consistency'];
+        if (scrapbookState.isOpen) return ['modal-scrapbook'];
+
+        if (mode === 'manuscript') {
+            return ['manuscript'];
+        } else {
+            const activePanel = novelState.activeAssemblyPanel;
+            return [`assembly-${activePanel}`];
+        }
+    }, [mode, novelState.activeAssemblyPanel, whatIfState.isOpen, rewriteState.isOpen, assemblyState.isImportModalOpen, plotBrainstormState.narrativeArchitect.isOpen, socialMediaState.isOpen, consistencyAuditState.isOpen, scrapbookState.isOpen]);
 
     const isBlankProject = useMemo(() => {
         return chapters.length === 1 && 
@@ -1023,6 +1042,8 @@ Return your response as a JSON array of objects, where each object has "word" (t
     }, [dispatch]);
 
     const onGenerateWhatIf = useCallback(async (text: string, context: string) => {
+        const taskId = `what-if-${Date.now()}`;
+        dispatch({ type: 'REGISTER_AI_TASK', payload: { id: taskId, label: "Brainstorming 'What If' scenarios", type: 'other', status: 'working', contexts: ['modal-what-if'] } });
         dispatch({ type: 'UPDATE_WHAT_IF_STATE', payload: { isOpen: true, isLoading: true, originalText: text, context: context, suggestions: null, error: null } });
         try {
             const prompt = `You are a creative writing assistant. The user has highlighted a key decision point or event in their story. Your task is to brainstorm 2-3 plausible and interesting alternative outcomes or "what if" scenarios.
@@ -1052,13 +1073,19 @@ Return your response as a JSON array of strings, where each string is a single p
             const suggestions = extractJson<string[]>(response.text || '') || [];
             
             dispatch({ type: 'UPDATE_WHAT_IF_STATE', payload: { isLoading: false, suggestions: Array.isArray(suggestions) ? suggestions : [] } });
-        } catch (e) {
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'completed', label: "What If scenarios ready" } } });
+        } catch (e: any) {
             console.error(e);
             dispatch({ type: 'UPDATE_WHAT_IF_STATE', payload: { isLoading: false, error: 'Failed to generate suggestions.' } });
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'error', error: e.message || 'Failed to generate suggestions.' } } });
+        } finally {
+            setTimeout(() => dispatch({ type: 'UNREGISTER_AI_TASK', payload: taskId }), 5000);
         }
     }, [dispatch, settings.geminiApiKey]);
 
     const onRewriteParagraphs = useCallback(async (text: string, context: string) => {
+        const taskId = `rewrite-${Date.now()}`;
+        dispatch({ type: 'REGISTER_AI_TASK', payload: { id: taskId, label: "Rewriting passage", type: 'other', status: 'working', contexts: ['modal-rewrite'] } });
         dispatch({ type: 'UPDATE_REWRITE_STATE', payload: { isOpen: true, isLoading: true, originalText: text, context: context, rewrites: null, error: null } });
         try {
             const prompt = `You are an expert editor and writing assistant. The user wants to rewrite the following passage to improve the flow of ideas while strictly maintaining their original authorial voice and style.
@@ -1090,9 +1117,13 @@ Return your response as a JSON array of 2 strings, where each string is one full
             const rewrites = extractJson<string[]>(response.text || '') || [];
             
             dispatch({ type: 'UPDATE_REWRITE_STATE', payload: { isLoading: false, rewrites: Array.isArray(rewrites) ? rewrites : [] } });
-        } catch (e) {
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'completed', label: "Passage rewritten" } } });
+        } catch (e: any) {
             console.error(e);
             dispatch({ type: 'UPDATE_REWRITE_STATE', payload: { isLoading: false, error: 'Failed to generate rewrites.' } });
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'error', error: e.message || 'Failed to generate rewrites.' } } });
+        } finally {
+            setTimeout(() => dispatch({ type: 'UNREGISTER_AI_TASK', payload: taskId }), 5000);
         }
     }, [dispatch, settings.geminiApiKey]);
 
@@ -1133,6 +1164,7 @@ Return your response as a JSON array of 2 strings, where each string is one full
 
                  {/* Title Bar for Window Controls - Hide in fullscreen */}
                  {!isFullscreen && <TitleBar backgroundColor={settings.toolbarBg || '#1F2937'} textColor={settings.toolbarText || '#FFFFFF'} />}
+                <AIStatusBanner settings={settings} activeContexts={activeContexts} />
 
                  <SplashScreen visible={showSplash} settings={settings} />
                  {isSavingVisual && <div className="save-border-indicator" />}

@@ -6,7 +6,7 @@ import { useNovelDispatch, useNovelState } from '../../NovelContext';
 import { useAssemblyAI } from './AssemblyAIContext';
 import MarkdownRenderer from '../common/MarkdownRenderer';
 import { ChevronDownIcon, BookOpenIcon, CameraIcon, LockClosedIconOutline, LockOpenIconOutline, RevertIcon, SparklesIconOutline, TrashIconOutline, StarIcon, XIcon, LinkIcon, ViewGridIcon, ChevronUpIcon, BrushIcon, SpinnerIcon, CheckCircleIcon, PaperAirplaneIcon, UserCircleIcon, FocusIcon, SaveIcon, DocumentTextIcon, ImportIcon, ListBulletIcon, ArchiveIcon, TableIcon, DownloadIcon } from '../common/Icons';
-import { isColorLight, shadeColor, getImageColor, harmonizeColor, getContrastColor } from '../../utils/colorUtils';
+import { isColorLight, shadeColor, getImageColor, harmonizeColor, getContrastColor, getTileColorsFromImage } from '../../utils/colorUtils';
 import { generateBriefingHtml, generateSpreadsheetCSV } from '../../utils/manuscriptUtils';
 import { exportChaptersToMarkdown, importChaptersFromMarkdown } from '../../utils/markdownUtils';
 import JSZip from 'jszip';
@@ -217,6 +217,7 @@ const ChapterTile: React.FC<ChapterTileProps> = React.memo(({
     const isGenerating = isGeneratingChapter === chapter.id;
 
     const [localTitle, setLocalTitle] = useState(chapter.title);
+    const [tagline, setTagline] = useState(chapter.tagline || '');
     const [summary, setSummary] = useState(chapter.summary);
     const [rawNotes, setRawNotes] = useState(chapter.rawNotes);
     const [outline, setOutline] = useState(chapter.outline);
@@ -230,11 +231,14 @@ const ChapterTile: React.FC<ChapterTileProps> = React.memo(({
     const titleInputRef = useRef<HTMLTextAreaElement>(null);
 
     const summaryRef = useRef<HTMLTextAreaElement>(null);
+    const taglineRef = useRef<HTMLTextAreaElement>(null);
     const rawNotesRef = useRef<HTMLTextAreaElement>(null);
     const outlineRef = useRef<HTMLTextAreaElement>(null);
     const analysisRef = useRef<HTMLTextAreaElement>(null);
+    const tileRef = useRef<HTMLDivElement>(null);
 
     useAutosizeTextArea(summaryRef, summary, isExpanded, scrollContainerRef, { isAnimated: true });
+    useAutosizeTextArea(taglineRef, tagline, isExpanded, scrollContainerRef, { isAnimated: true });
     useAutosizeTextArea(rawNotesRef, rawNotes, isExpanded, scrollContainerRef, { isAnimated: true });
     useAutosizeTextArea(outlineRef, outline, isExpanded, scrollContainerRef, { isAnimated: true });
     useAutosizeTextArea(analysisRef, analysis, isExpanded, scrollContainerRef, { isAnimated: true });
@@ -246,6 +250,7 @@ const ChapterTile: React.FC<ChapterTileProps> = React.memo(({
 
     useEffect(() => {
         setLocalTitle(chapter.title);
+        setTagline(chapter.tagline || '');
         setSummary(chapter.summary);
         setRawNotes(chapter.rawNotes);
         setOutline(chapter.outline);
@@ -258,6 +263,19 @@ const ChapterTile: React.FC<ChapterTileProps> = React.memo(({
             setIsEditingAnalysis(true);
         }
     }, [chapter]);
+
+    useEffect(() => {
+        if (!isExpanded) return;
+        const handleClickOutside = (event: MouseEvent) => {
+            if (tileRef.current && !tileRef.current.contains(event.target as Node)) {
+                const target = event.target as HTMLElement;
+                if (target.closest('[role="dialog"]') || target.closest('.command-palette')) return;
+                onToggleExpand(chapter.id);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [isExpanded, onToggleExpand, chapter.id]);
 
     useEffect(() => {
         if (isEditingTitle && titleInputRef.current) {
@@ -307,8 +325,13 @@ const ChapterTile: React.FC<ChapterTileProps> = React.memo(({
             reader.onload = async (loadEvent) => {
                 const photoUrl = loadEvent.target?.result as string;
                 try {
-                    const imageColor = await getImageColor(photoUrl);
-                    onUpdate(chapter.id, { photo: photoUrl, imageColor: imageColor, isPhotoLocked: true });
+                    const colors = await getTileColorsFromImage(photoUrl);
+                    onUpdate(chapter.id, { 
+                        photo: photoUrl, 
+                        imageColor: colors.primary, 
+                        imageAccentColor: colors.accent,
+                        isPhotoLocked: true 
+                    });
                 } catch (err) {
                     onUpdate(chapter.id, { photo: photoUrl, isPhotoLocked: true });
                 }
@@ -433,7 +456,7 @@ const ChapterTile: React.FC<ChapterTileProps> = React.memo(({
             .filter((s): s is ISnippet => !!s);
     }, [chapter.linkedSnippetIds, snippets]);
     
-    const accentColor = useImageColor ? chapter.imageColor! : settings.accentColor;
+    const accentColor = useImageColor ? (chapter.imageAccentColor || chapter.imageColor!) : settings.accentColor;
 
     const backgroundStyle = useMemo(() => {
         const hasDominantColor = settings.tileColorSource === 'image' && !!chapter.imageColor;
@@ -443,23 +466,26 @@ const ChapterTile: React.FC<ChapterTileProps> = React.memo(({
             ? harmonizeColor(chapter.imageColor!, settings.backgroundColor, isDarkMode)
             : (settings.toolbarButtonBg || '#374151');
             
-        const secondaryColor = shadeColor(baseColor, isDarkMode ? 7 : -7);
+        // Use harmonized accent color if available
+        const accentBase = (hasDominantColor && chapter.imageAccentColor)
+            ? harmonizeColor(chapter.imageAccentColor, settings.backgroundColor, isDarkMode)
+            : shadeColor(baseColor, isDarkMode ? 12 : -12);
         
         const style: any = { baseColor };
         
         switch (tileBackgroundStyle) {
             case 'diagonal': 
-                style.background = `linear-gradient(to top left, ${baseColor} 49.9%, ${secondaryColor} 50.1%)`;
+                style.background = `linear-gradient(to top left, ${baseColor} 49.9%, ${accentBase} 50.1%)`;
                 break;
             case 'horizontal': 
-                style.background = `linear-gradient(to bottom, ${isDarkMode ? secondaryColor : baseColor} 33.3%, ${isDarkMode ? baseColor : secondaryColor} 33.3%)`;
+                style.background = `linear-gradient(to bottom, ${isDarkMode ? accentBase : baseColor} 33.3%, ${isDarkMode ? baseColor : accentBase} 33.3%)`;
                 break;
             default: 
                 style.backgroundColor = baseColor;
                 break;
         }
         return style;
-    }, [tileBackgroundStyle, settings.backgroundColor, settings.toolbarButtonBg, isDarkMode, chapter.imageColor]);
+    }, [tileBackgroundStyle, settings.backgroundColor, settings.toolbarButtonBg, isDarkMode, chapter.imageColor, chapter.imageAccentColor]);
 
     const tileBaseColor = backgroundStyle.baseColor;
     const tileTextColor = getContrastColor(tileBaseColor);
@@ -479,6 +505,7 @@ const ChapterTile: React.FC<ChapterTileProps> = React.memo(({
             >
                 <input type="file" accept="image/png, image/jpeg" ref={fileInputRef} onChange={handlePhotoUpload} className="hidden" />
                 <div
+                    ref={tileRef}
                     onClick={(e) => onSelect(chapter.id, e)}
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={handleCharacterDrop}
@@ -509,12 +536,12 @@ const ChapterTile: React.FC<ChapterTileProps> = React.memo(({
                                         style={{ color: tileTextColor, lineHeight: '1.2' }} rows={1}
                                     />
                                 ) : (
-                                    <h3 onClick={(e) => { e.stopPropagation(); setIsEditingTitle(true); }} className="font-bold text-3xl cursor-pointer truncate" title={chapter.title}>
+                                    <h3 onClick={(e) => { e.stopPropagation(); setIsEditingTitle(true); }} className="font-bold text-3xl cursor-pointer truncate" title={chapter.title} style={{ color: tileTextColor }}>
                                         {chapter.title}
                                     </h3>
                                 )}
                             </div>
-                            {chapter.summary && <p className="text-lg mt-1 italic opacity-90 line-clamp-2">"{chapter.summary}"</p>}
+                            {tagline && <p className="text-lg mt-1 italic opacity-90 line-clamp-2" style={{ color: tileTextColor }}>"{tagline}"</p>}
                             {chapter.keywords && chapter.keywords.length > 0 && (
                                 <div className="flex flex-wrap gap-2 mt-3">
                                     {chapter.keywords.map(kw => (
@@ -567,7 +594,7 @@ const ChapterTile: React.FC<ChapterTileProps> = React.memo(({
                     <div className="p-6 border-t space-y-8" style={{ borderColor: `${tileBorderColor}80`}}>
                         {linkedCharacters.length > 0 && (
                             <div>
-                                <label className="block text-sm font-semibold mb-3 opacity-80 uppercase tracking-wider">Characters in Scene</label>
+                                <label className="block text-sm font-semibold mb-3 opacity-80 uppercase tracking-wider" style={{ color: tileTextColor }}>Characters in Scene</label>
                                 <div className="flex flex-wrap gap-3">
                                     {linkedCharacters.map(char => {
                                         const charAccent = (settings.tileColorSource === 'image' && char.imageColor) ? harmonizeColor(char.imageColor, settings.backgroundColor, isDarkMode) : settings.accentColor;
@@ -577,8 +604,8 @@ const ChapterTile: React.FC<ChapterTileProps> = React.memo(({
                                                    {!char.photo && <UserCircleIcon className="h-full w-full opacity-50"/>}
                                                 </div>
                                                 <div className="min-w-0">
-                                                    <p className="font-semibold text-sm truncate">{char.name}</p>
-                                                    <p className="text-[10px] opacity-60 truncate">{char.tagline}</p>
+                                                    <p className="font-semibold text-sm truncate" style={{ color: getContrastColor(secondaryButtonBg) }}>{char.name}</p>
+                                                    <p className="text-[10px] opacity-60 truncate" style={{ color: getContrastColor(secondaryButtonBg) }}>{char.tagline}</p>
                                                 </div>
                                                 <button 
                                                     onClick={(e) => { 
@@ -602,7 +629,18 @@ const ChapterTile: React.FC<ChapterTileProps> = React.memo(({
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                             <div className="space-y-6">
                                 <div>
-                                    <label className="block text-sm font-semibold mb-2 opacity-80 uppercase tracking-wider">Summary</label>
+                                    <label className="block text-sm font-semibold mb-2 opacity-80 uppercase tracking-wider" style={{ color: tileTextColor }}>Tagline</label>
+                                    <textarea
+                                        ref={taglineRef} value={tagline}
+                                        onChange={e => { setTagline(e.target.value); debouncedUpdate({ tagline: e.target.value }); }}
+                                        className="w-full p-3 rounded-lg border resize-none overflow-hidden transition-colors"
+                                        style={{ borderColor: `${tileTextColor}33`, color: inputText, backgroundColor: inputBg }}
+                                        placeholder="Enter a one-sentence tagline..."
+                                        rows={1}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold mb-2 opacity-80 uppercase tracking-wider" style={{ color: tileTextColor }}>Summary</label>
                                     <textarea
                                         ref={summaryRef} value={summary}
                                         onChange={e => { setSummary(e.target.value); debouncedUpdate({ summary: e.target.value }); }}
@@ -613,7 +651,7 @@ const ChapterTile: React.FC<ChapterTileProps> = React.memo(({
                                 </div>
                                 <div>
                                     <div className="flex justify-between items-center mb-2">
-                                        <label className="text-sm font-semibold opacity-80 uppercase tracking-wider flex items-center gap-2">
+                                        <label className="text-sm font-semibold opacity-80 uppercase tracking-wider flex items-center gap-2" style={{ color: tileTextColor }}>
                                             <ListBulletIcon className="h-3 w-3" /> Beat Outline
                                         </label>
                                         <button onClick={() => setIsEditingOutline(p => !p)} className="text-[10px] px-2 py-1 rounded-md uppercase font-bold tracking-tighter transition-colors" style={{ backgroundColor: actionButtonBg, color: actionButtonText }}>
@@ -630,7 +668,7 @@ const ChapterTile: React.FC<ChapterTileProps> = React.memo(({
                                         />
                                     ) : (
                                         <div className="w-full p-4 rounded-lg border max-h-96 overflow-y-auto transition-colors" style={{ borderColor: `${tileTextColor}33`, color: inputText, backgroundColor: inputBg }}>
-                                            <MarkdownRenderer source={outline} settings={settings} />
+                                            <MarkdownRenderer source={outline} settings={settings} color={inputText} />
                                         </div>
                                     )}
                                 </div>
@@ -639,7 +677,7 @@ const ChapterTile: React.FC<ChapterTileProps> = React.memo(({
                             <div className="space-y-6">
                                 <div>
                                     <div className="flex justify-between items-center mb-2">
-                                        <label className="block text-sm font-semibold opacity-80 uppercase tracking-wider">Story Analysis</label>
+                                        <label className="block text-sm font-semibold opacity-80 uppercase tracking-wider" style={{ color: tileTextColor }}>Story Analysis</label>
                                         <button onClick={() => setIsEditingAnalysis(p => !p)} className="text-[10px] px-2 py-1 rounded-md uppercase font-bold tracking-tighter transition-colors" style={{ backgroundColor: actionButtonBg, color: actionButtonText }}>
                                             {isEditingAnalysis ? 'Preview' : 'Edit'}
                                         </button>
@@ -655,12 +693,12 @@ const ChapterTile: React.FC<ChapterTileProps> = React.memo(({
                                         />
                                     ) : (
                                         <div className="w-full p-4 rounded-lg border max-h-96 overflow-y-auto transition-colors" style={{ borderColor: `${tileTextColor}33`, color: inputText, backgroundColor: inputBg }}>
-                                            <MarkdownRenderer source={analysis} settings={settings} />
+                                            <MarkdownRenderer source={analysis} settings={settings} color={inputText} />
                                         </div>
                                     )}
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-semibold mb-2 opacity-80 uppercase tracking-wider">Rough Notes</label>
+                                    <label className="block text-sm font-semibold mb-2 opacity-80 uppercase tracking-wider" style={{ color: tileTextColor }}>Rough Notes</label>
                                     <textarea
                                         ref={rawNotesRef} value={rawNotes}
                                         onChange={e => { setRawNotes(e.target.value); debouncedUpdate({ rawNotes: e.target.value }); }}
@@ -675,7 +713,7 @@ const ChapterTile: React.FC<ChapterTileProps> = React.memo(({
 
                         {linkedSnippets.length > 0 && (
                             <div>
-                                <label className="block text-sm font-semibold mb-3 opacity-80 uppercase tracking-wider">Linked Snippets</label>
+                                <label className="block text-sm font-semibold mb-3 opacity-80 uppercase tracking-wider" style={{ color: tileTextColor }}>Linked Snippets</label>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     {linkedSnippets.map(snippet => (
                                         <div key={snippet.id} className="p-4 rounded-xl flex justify-between items-start gap-4 shadow-sm border border-white/5 transition-colors" style={{ backgroundColor: inputBg, color: inputText }}>
@@ -840,7 +878,7 @@ const ChapterTile: React.FC<ChapterTileProps> = React.memo(({
                     </div>
                     {zoomLevel < 1 && (
                         <p className="text-[10px] opacity-60 mt-1 line-clamp-3 leading-tight italic">
-                            {chapter.summary || "No summary provided."}
+                            {tagline || chapter.summary || "No summary provided."}
                         </p>
                     )}
                     {zoomLevel < 2 && (
@@ -1137,6 +1175,7 @@ export const ChaptersPanel: React.FC<ChaptersPanelProps> = ({
     const [stagedChapters, setStagedChapters] = useState<IChapter[]>(chapters);
     const [isDirty, setIsDirty] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
+    const [hideHeaders, setHideHeaders] = useState(false);
     
     const [dragState, setDragState] = useState<{draggedIds: string[] | null, overId: string | null}>({draggedIds: null, overId: null});
     const [overAct, setOverAct] = useState<number | null>(null);
@@ -1523,7 +1562,7 @@ export const ChaptersPanel: React.FC<ChaptersPanelProps> = ({
 
                     <div className="flex items-center gap-1">
                         <button 
-                            onClick={onToggleContinuousView} 
+                            onClick={() => onToggleContinuousView} 
                             className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-md transition-all whitespace-nowrap" 
                             style={{ 
                                 backgroundColor: isContinuousView ? settings.accentColor : settings.toolbarButtonBg, 
@@ -1534,6 +1573,20 @@ export const ChaptersPanel: React.FC<ChaptersPanelProps> = ({
                             <FocusIcon className="h-4 w-4" />
                             {isContinuousView ? 'Tile View' : 'Focus View'}
                         </button>
+                        {!isContinuousView && !isSpreadsheetView && (
+                            <button 
+                                onClick={() => setHideHeaders(!hideHeaders)} 
+                                className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-md transition-all whitespace-nowrap" 
+                                style={{ 
+                                    backgroundColor: hideHeaders ? settings.accentColor : settings.toolbarButtonBg, 
+                                    color: hideHeaders ? '#FFFFFF' : settings.toolbarText 
+                                }}
+                                title="Hide/Show Act Headings to maximize vertical space"
+                            >
+                                <ListBulletIcon className="h-4 w-4" />
+                                {hideHeaders ? 'Show Headings' : 'Hide Headings'}
+                            </button>
+                        )}
                         <button 
                             onClick={onToggleSpreadsheetView} 
                             className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-md transition-all whitespace-nowrap" 
@@ -1661,10 +1714,10 @@ export const ChaptersPanel: React.FC<ChaptersPanelProps> = ({
                             scrollContainerRef={scrollRef}
                         />
                      ) : (
-                        <div className="flex flex-col gap-12 w-full pb-32">
+                        <div className={`flex flex-col ${hideHeaders ? 'gap-4' : 'gap-12'} w-full pb-32`}>
                             {actNums.map(actNum => (
-                                <div key={actNum} data-act={actNum} className="space-y-4">
-                                    <EditableActHeader actNum={actNum} settings={settings} />
+                                <div key={actNum} data-act={actNum} className={hideHeaders ? "" : "space-y-4"}>
+                                    {!hideHeaders && <EditableActHeader actNum={actNum} settings={settings} />}
                                     <div 
                                         className={`rounded-xl grid gap-6 p-6 transition-all duration-300 ${overAct === actNum ? 'ring-2' : 'bg-black/10'}`} 
                                         style={{ 

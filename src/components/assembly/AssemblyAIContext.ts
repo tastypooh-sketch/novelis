@@ -21,7 +21,7 @@ export interface AssemblyAIState {
 
 export interface AssemblyAIContextType extends AssemblyAIState {
     onGenerateProfile: (character: ICharacter, rawNotes: string) => Promise<void>;
-    onUpdateProfile: (character: ICharacter, manuscriptContent: string) => Promise<void>;
+    onUpdateProfile: (character: ICharacter, selectedChapterIds?: string[]) => Promise<void>;
     onGenerateChapterDetails: (chapter: IChapter, rawNotes: string) => Promise<void>;
     onUpdateChapterFromManuscript: (chapter: IChapter) => Promise<Partial<IChapter> | null>;
     onAnalyzeSnippets: (rawText: string, characters: ICharacter[]) => Promise<boolean>;

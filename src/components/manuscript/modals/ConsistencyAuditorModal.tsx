@@ -16,14 +16,24 @@ export const ConsistencyAuditorModal: React.FC<ConsistencyAuditorModalProps> = (
     const dispatch = useNovelDispatch();
     const [isLocalAuditing, setIsLocalAuditing] = useState(false);
 
+    // Sync global isOpen state for AI status banner visibility
+    React.useEffect(() => {
+        dispatch({ type: 'UPDATE_CONSISTENCY_AUDIT_STATE', payload: { isOpen: true } });
+        return () => {
+            dispatch({ type: 'UPDATE_CONSISTENCY_AUDIT_STATE', payload: { isOpen: false } });
+        };
+    }, [dispatch]);
+
     const handleRunAudit = async () => {
         if (!settings.geminiApiKey) {
             dispatch({ type: 'UPDATE_CONSISTENCY_AUDIT_STATE', payload: { error: "Gemini API Key is missing. Please add it in settings." } });
             return;
         }
 
+        const taskId = `audit-${Date.now()}`;
         setIsLocalAuditing(true);
         dispatch({ type: 'UPDATE_CONSISTENCY_AUDIT_STATE', payload: { isAuditing: true, error: null } });
+        dispatch({ type: 'REGISTER_AI_TASK', payload: { id: taskId, label: "Auditing manuscript consistency", type: 'other', status: 'working', contexts: ['modal-consistency'] } });
 
         try {
             const issues = await runNarrativeAudit(
@@ -40,6 +50,7 @@ export const ConsistencyAuditorModal: React.FC<ConsistencyAuditorModalProps> = (
                     isAuditing: false 
                 } 
             });
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'completed', label: "Audit complete" } } });
         } catch (err: any) {
             dispatch({ 
                 type: 'UPDATE_CONSISTENCY_AUDIT_STATE', 
@@ -48,8 +59,10 @@ export const ConsistencyAuditorModal: React.FC<ConsistencyAuditorModalProps> = (
                     isAuditing: false 
                 } 
             });
+            dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'error', error: err.message || "Audit failed" } } });
         } finally {
             setIsLocalAuditing(false);
+            setTimeout(() => dispatch({ type: 'UNREGISTER_AI_TASK', payload: taskId }), 5000);
         }
     };
 

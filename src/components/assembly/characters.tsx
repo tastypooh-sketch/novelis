@@ -6,7 +6,7 @@ import { useNovelState, useNovelDispatch } from '../../NovelContext';
 import { useAssemblyAI } from './AssemblyAIContext';
 import MarkdownRenderer from '../common/MarkdownRenderer';
 import { ChevronDownIcon, SparklesIconOutline, RevertIcon, TrashIconOutline, StarIcon, StarIconOutline, CameraIcon, UserCircleIcon, BrushIcon, LockClosedIconOutline, LockOpenIconOutline, ChevronUpIcon, UserGroupIcon, ViewGridIcon, PlusIcon, ArchiveIcon, DownloadIcon, MessageIcon } from '../common/Icons';
-import { isColorLight, shadeColor, getImageColor, harmonizeColor, getContrastColor } from '../../utils/colorUtils';
+import { isColorLight, shadeColor, getImageColor, harmonizeColor, getContrastColor, getTileColorsFromImage } from '../../utils/colorUtils';
 import { AIError } from '../common/AIError';
 import { LockedChestTab, useLockedChestSelection } from '../common/LockedChest';
 import { CharacterInterviewModal } from './modals/CharacterInterviewModal';
@@ -262,6 +262,7 @@ const CharacterTile: React.FC<CharacterTileProps> = React.memo(({
     const { isGeneratingProfile, errorId, errorMessage, onGenerateProfile, onUpdateProfile, onSetError } = useAssemblyAI();
     const isGenerating = isGeneratingProfile === character.id;
 
+    const [tagline, setTagline] = useState(character.tagline || '');
     const [summary, setSummary] = useState(character.summary);
     const [rawNotes, setRawNotes] = useState(character.rawNotes);
     const [profile, setProfile] = useState(character.profile);
@@ -272,13 +273,16 @@ const CharacterTile: React.FC<CharacterTileProps> = React.memo(({
     const nameInputRef = useRef<HTMLTextAreaElement>(null);
 
     const summaryRef = useRef<HTMLTextAreaElement>(null);
+    const taglineRef = useRef<HTMLTextAreaElement>(null);
     const rawNotesRef = useRef<HTMLTextAreaElement>(null);
     const profileRef = useRef<HTMLTextAreaElement>(null);
+    const tileRef = useRef<HTMLDivElement>(null);
     const [showUpdateConfirm, setShowUpdateConfirm] = useState(false);
 
     const isLinkPanel = variant === 'link-panel';
 
     useAutosizeTextArea(summaryRef, summary, isExpanded, scrollContainerRef, { isAnimated: true });
+    useAutosizeTextArea(taglineRef, tagline, isExpanded, scrollContainerRef, { isAnimated: true });
     useAutosizeTextArea(rawNotesRef, rawNotes, isExpanded, scrollContainerRef, { isAnimated: true });
     useAutosizeTextArea(profileRef, profile, isExpanded, scrollContainerRef, { isAnimated: true });
     useAutosizeTextArea(nameInputRef, localName, isEditingName, scrollContainerRef, { isAnimated: false });
@@ -293,6 +297,7 @@ const CharacterTile: React.FC<CharacterTileProps> = React.memo(({
     }, 500);
 
     useEffect(() => {
+        setTagline(character.tagline || '');
         setSummary(character.summary);
         setRawNotes(character.rawNotes);
         setProfile(character.profile);
@@ -301,6 +306,19 @@ const CharacterTile: React.FC<CharacterTileProps> = React.memo(({
             setIsEditingProfile(true);
         }
     }, [character]);
+
+    useEffect(() => {
+        if (!isExpanded) return;
+        const handleClickOutside = (event: MouseEvent) => {
+            if (tileRef.current && !tileRef.current.contains(event.target as Node)) {
+                const target = event.target as HTMLElement;
+                if (target.closest('[role="dialog"]') || target.closest('.command-palette')) return;
+                onToggleExpand(character.id);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [isExpanded, onToggleExpand, character.id]);
     
     useEffect(() => {
         if (isEditingName && nameInputRef.current) {
@@ -338,8 +356,13 @@ const CharacterTile: React.FC<CharacterTileProps> = React.memo(({
             reader.onload = async (loadEvent) => {
                 const photoUrl = loadEvent.target?.result as string;
                 try {
-                    const imageColor = await getImageColor(photoUrl);
-                    onUpdate(character.id, { photo: photoUrl, imageColor: imageColor, isPhotoLocked: true });
+                    const colors = await getTileColorsFromImage(photoUrl);
+                    onUpdate(character.id, { 
+                        photo: photoUrl, 
+                        imageColor: colors.primary, 
+                        imageAccentColor: colors.accent,
+                        isPhotoLocked: true 
+                    });
                 } catch(err) {
                     onUpdate(character.id, { photo: photoUrl, isPhotoLocked: true });
                 }
@@ -357,15 +380,17 @@ const CharacterTile: React.FC<CharacterTileProps> = React.memo(({
         setIsEditingProfile(false);
     }
     
+    const [selectedUpdateChapterIds, setSelectedUpdateChapterIds] = useState<string[]>([]);
+
     const handleUpdateProfile = () => {
-        const manuscriptContent = chapters.map(c => {
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = c.content;
-            return `Chapter ${c.chapterNumber}:\n${tempDiv.innerText}\n\n`;
-        }).join('---\n\n');
-        
-        onUpdateProfile(character, manuscriptContent);
+        onUpdateProfile(character, selectedUpdateChapterIds);
         setShowUpdateConfirm(false);
+    };
+
+    const toggleChapterSelection = (id: string) => {
+        setSelectedUpdateChapterIds(prev => 
+            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+        );
     };
     
     const handleRevertProfile = () => {
@@ -443,6 +468,8 @@ const CharacterTile: React.FC<CharacterTileProps> = React.memo(({
     const tileBorderColor = useImageColor ? character.imageColor! : settings.toolbarInputBorderColor;
     const isDarkMode = !isColorLight(settings.textColor);
 
+    const accentColor = useImageColor ? (character.imageAccentColor || character.imageColor!) : settings.accentColor;
+
     const backgroundStyle = useMemo(() => {
         const hasDominantColor = settings.tileColorSource === 'image' && !!character.imageColor;
         
@@ -451,24 +478,27 @@ const CharacterTile: React.FC<CharacterTileProps> = React.memo(({
             ? harmonizeColor(character.imageColor!, settings.backgroundColor, isDarkMode)
             : (settings.toolbarButtonBg || '#374151');
             
-        const secondaryColor = shadeColor(baseColor, isDarkMode ? 7 : -7);
+        // Use harmonized accent color if available
+        const accentBase = (hasDominantColor && character.imageAccentColor)
+            ? harmonizeColor(character.imageAccentColor, settings.backgroundColor, isDarkMode)
+            : shadeColor(baseColor, isDarkMode ? 12 : -12);
         
         const style: any = { baseColor };
         
         switch (tileBackgroundStyle) {
             case 'diagonal': 
-                style.background = `linear-gradient(to top left, ${baseColor} 49.9%, ${secondaryColor} 50.1%)`;
+                style.background = `linear-gradient(to top left, ${baseColor} 49.9%, ${accentBase} 50.1%)`;
                 break;
             case 'horizontal': 
-                style.background = `linear-gradient(to bottom, ${isDarkMode ? secondaryColor : baseColor} 33.3%, ${isDarkMode ? baseColor : secondaryColor} 33.3%)`;
+                style.background = `linear-gradient(to bottom, ${isDarkMode ? accentBase : baseColor} 33.3%, ${isDarkMode ? baseColor : accentBase} 33.3%)`;
                 break;
             default: 
                 style.backgroundColor = baseColor;
                 break;
         }
         return style;
-    }, [tileBackgroundStyle, settings.backgroundColor, settings.toolbarButtonBg, isDarkMode, character.imageColor]);
-    
+    }, [tileBackgroundStyle, settings.backgroundColor, settings.toolbarButtonBg, isDarkMode, character.imageColor, character.imageAccentColor]);
+
     const tileBaseColor = backgroundStyle.baseColor;
     const tileTextColor = getContrastColor(tileBaseColor);
     
@@ -478,8 +508,6 @@ const CharacterTile: React.FC<CharacterTileProps> = React.memo(({
     const inputText = getContrastColor(inputBg);
     const actionButtonBg = shadeColor(tileBaseColor, isDarkMode ? 15 : -15);
     const actionButtonText = getContrastColor(actionButtonBg);
-    
-    const accentColor = useImageColor ? character.imageColor! : settings.accentColor;
 
     if (isLinkPanel) {
         return (
@@ -509,7 +537,7 @@ const CharacterTile: React.FC<CharacterTileProps> = React.memo(({
                      </div>
                     <div className="pr-20">
                         <h4 className="font-bold text-sm truncate">{character.name}</h4>
-                        <p className="text-xs opacity-70 mt-1 summary-clamped-2line">{character.summary || character.tagline}</p>
+                        <p className="text-xs opacity-70 mt-1 summary-clamped-2line">{tagline || character.summary}</p>
                     </div>
                 </div>
             </div>
@@ -524,6 +552,7 @@ const CharacterTile: React.FC<CharacterTileProps> = React.memo(({
              >
                 <input type="file" accept="image/png, image/jpeg" ref={fileInputRef} onChange={handlePhotoUpload} className="hidden" />
                 <div
+                    ref={tileRef}
                     onClick={(e) => onSelect(character.id, e)}
                     className={`relative rounded-lg shadow-md transition-shadow duration-300 ease-in-out z-10 flex flex-col border-4`}
                     style={{
@@ -552,14 +581,14 @@ const CharacterTile: React.FC<CharacterTileProps> = React.memo(({
                                     ref={nameInputRef} value={localName} onChange={e => setLocalName(e.target.value)}
                                     onBlur={handleNameUpdate} onKeyDown={handleNameKeyDown} onClick={e => e.stopPropagation()}
                                     className="font-bold text-3xl w-full p-0 border-none resize-none outline-none block bg-transparent"
-                                    style={{ color: settings.textColor, lineHeight: '1.2' }} rows={1}
+                                    style={{ color: tileTextColor, lineHeight: '1.2' }} rows={1}
                                 />
                             ) : (
-                                <h3 onClick={(e) => { e.stopPropagation(); setIsEditingName(true); }} className="font-bold text-3xl cursor-pointer" title={character.name}>
-                                    <span className="truncate">{character.name}</span>
+                                <h3 onClick={(e) => { e.stopPropagation(); setIsEditingName(true); }} className="font-bold text-3xl cursor-pointer truncate" title={character.name} style={{ color: tileTextColor }}>
+                                    {character.name}
                                 </h3>
                             )}
-                            {character.tagline && <p className="text-lg mt-1 italic opacity-90">"{character.tagline}"</p>}
+                            {tagline && <p className="text-lg mt-1 italic opacity-90" style={{ color: tileTextColor }}>"{tagline}"</p>}
                              {character.keywords && character.keywords.length > 0 && (
                                 <div className="flex flex-wrap gap-2 mt-3">
                                     {character.keywords.map(kw => (
@@ -610,7 +639,18 @@ const CharacterTile: React.FC<CharacterTileProps> = React.memo(({
                     <div className="p-6 border-t" style={{ borderColor: `${tileBorderColor}80`}}>
                         <div className="space-y-6">
                             <div>
-                                <label className="block text-sm font-semibold mb-2 opacity-80 uppercase tracking-wider">Summary</label>
+                                <label className="block text-sm font-semibold mb-2 opacity-80 uppercase tracking-wider" style={{ color: tileTextColor }}>Tagline</label>
+                                <textarea
+                                    ref={taglineRef} value={tagline}
+                                    onChange={e => { setTagline(e.target.value); debouncedUpdate({ tagline: e.target.value }); }}
+                                    className="w-full p-3 rounded-lg border resize-none overflow-hidden transition-colors"
+                                    style={{ borderColor: `${tileTextColor}33`, color: inputText, backgroundColor: inputBg }}
+                                    placeholder="Enter a one-sentence tagline..."
+                                    rows={1}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold mb-2 opacity-80 uppercase tracking-wider" style={{ color: tileTextColor }}>Summary</label>
                                 <textarea
                                     ref={summaryRef} value={summary}
                                     onChange={e => { setSummary(e.target.value); debouncedUpdate({ summary: e.target.value }); }}
@@ -621,7 +661,7 @@ const CharacterTile: React.FC<CharacterTileProps> = React.memo(({
                             </div>
                              <div>
                                 <div className="flex justify-between items-center mb-2">
-                                    <label className="block text-sm font-semibold opacity-80 uppercase tracking-wider">Detailed Profile</label>
+                                    <label className="block text-sm font-semibold opacity-80 uppercase tracking-wider" style={{ color: tileTextColor }}>Detailed Profile</label>
                                     <button
                                         onClick={() => setIsEditingProfile(p => !p)}
                                         className="text-[10px] px-2 py-1 rounded-md uppercase font-bold tracking-tighter transition-colors"
@@ -640,12 +680,12 @@ const CharacterTile: React.FC<CharacterTileProps> = React.memo(({
                                     />
                                 ) : (
                                     <div className="w-full p-4 rounded-lg border max-h-96 overflow-y-auto transition-colors" style={{ borderColor: `${tileTextColor}33`, color: inputText, backgroundColor: inputBg }}>
-                                        <MarkdownRenderer source={profile} settings={settings} />
+                                        <MarkdownRenderer source={profile} settings={settings} color={inputText} />
                                     </div>
                                 )}
                             </div>
                             <div>
-                                <label className="block text-sm font-semibold mb-2 opacity-80 uppercase tracking-wider">Rough Notes</label>
+                                <label className="block text-sm font-semibold mb-2 opacity-80 uppercase tracking-wider" style={{ color: tileTextColor }}>Rough Notes</label>
                                 <textarea
                                     ref={rawNotesRef} value={rawNotes}
                                     onChange={e => { setRawNotes(e.target.value); debouncedUpdate({ rawNotes: e.target.value }); }}
@@ -656,21 +696,22 @@ const CharacterTile: React.FC<CharacterTileProps> = React.memo(({
                                 />
                             </div>
                              <div>
-                                <label className="block text-sm font-semibold mb-2 opacity-80 uppercase tracking-wider">Relationships</label>
+                                <label className="block text-sm font-semibold mb-2 opacity-80 uppercase tracking-wider" style={{ color: tileTextColor }}>Relationships</label>
                                 {(character.relationships && character.relationships.length > 0) ? (
                                     <div className="space-y-2">
                                         {character.relationships.map(rel => {
                                             const relatedChar = allCharacters.find(c => c.id === rel.characterId);
                                             if (!relatedChar) return null;
                                             const relBg = shadeColor(inputBg, isDarkMode ? -5 : 5);
+                                            const relText = getContrastColor(relBg);
                                             return (
-                                                <div key={rel.characterId} className="flex items-center gap-3 p-3 rounded-lg border border-white/5 transition-colors" style={{ backgroundColor: relBg, color: getContrastColor(relBg) }}>
+                                                <div key={rel.characterId} className="flex items-center gap-3 p-3 rounded-lg border border-white/5 transition-colors" style={{ backgroundColor: relBg, color: relText }}>
                                                     <div className="h-10 w-10 rounded-full bg-cover bg-center flex-shrink-0 border-2" style={{ backgroundImage: relatedChar.photo ? `url(${relatedChar.photo})` : undefined, backgroundColor: relatedChar.imageColor || settings.accentColor, borderColor: relatedChar.imageColor || settings.accentColor }}>
                                                        {!relatedChar.photo && <UserCircleIcon className="h-full w-full opacity-50"/>}
                                                     </div>
                                                     <div className="min-w-0">
-                                                        <p className="font-semibold text-sm truncate">{relatedChar.name}</p>
-                                                        <p className="text-xs opacity-70 truncate">{rel.description}</p>
+                                                        <p className="font-semibold text-sm truncate" style={{ color: relText }}>{relatedChar.name}</p>
+                                                        <p className="text-xs opacity-70 truncate" style={{ color: relText }}>{rel.description}</p>
                                                     </div>
                                                 </div>
                                             );
@@ -727,18 +768,51 @@ const CharacterTile: React.FC<CharacterTileProps> = React.memo(({
                                      </button>
                                     {showUpdateConfirm && (
                                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 p-4 rounded-xl shadow-2xl text-xs z-50 border border-white/10" style={{backgroundColor: settings.dropdownBg, color: settings.toolbarText}}>
-                                             <div className="flex justify-between items-start mb-2">
-                                                 <p className="font-bold">Confirm Update</p>
-                                                 <button onClick={(e) => { e.stopPropagation(); setShowUpdateConfirm(false); }} className="opacity-40 hover:opacity-100">✕</button>
-                                             </div>
-                                             <p className="opacity-80 leading-relaxed">This will analyze the entire manuscript to update this character's profile based on their actions and dialogue. This will overwrite existing profile data.</p>
-                                             <button 
-                                                onClick={(e) => { e.stopPropagation(); handleUpdateProfile(); }} 
-                                                className="w-full mt-3 py-2 rounded-lg font-bold shadow-md transition-transform active:scale-95" 
-                                                style={{backgroundColor: settings.accentColor, color: getContrastColor(settings.accentColor)}}
-                                             >
-                                                Confirm Update
-                                             </button>
+                                              <div className="flex justify-between items-start mb-2">
+                                                  <p className="font-bold">Update from Manuscript</p>
+                                                  <button onClick={(e) => { e.stopPropagation(); setShowUpdateConfirm(false); }} className="opacity-40 hover:opacity-100">✕</button>
+                                              </div>
+                                              <p className="opacity-80 leading-relaxed mb-3">Select which chapters the AI should analyze to update this character's profile. Overwrites existing profile data.</p>
+                                              
+                                              <div className="max-h-48 overflow-y-auto space-y-1 mb-3 pr-1 custom-scrollbar">
+                                                  <div 
+                                                     className="flex items-center gap-2 p-1.5 rounded hover:bg-white/5 cursor-pointer transition-colors"
+                                                     onClick={(e) => {
+                                                         e.stopPropagation();
+                                                         if (selectedUpdateChapterIds.length === chapters.length) {
+                                                             setSelectedUpdateChapterIds([]);
+                                                         } else {
+                                                             setSelectedUpdateChapterIds(chapters.map(c => c.id));
+                                                         }
+                                                     }}
+                                                  >
+                                                      <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${selectedUpdateChapterIds.length === chapters.length ? 'bg-app-accent border-app-accent' : 'border-white/20'}`}>
+                                                          {selectedUpdateChapterIds.length === chapters.length && <div className="w-1.5 h-1.5 bg-white rounded-full"></div>}
+                                                      </div>
+                                                      <span className="font-semibold">Select All Chapters ({chapters.length})</span>
+                                                  </div>
+                                                  {chapters.map(ch => (
+                                                      <div 
+                                                          key={ch.id} 
+                                                          className="flex items-center gap-2 p-1.5 rounded hover:bg-white/5 cursor-pointer transition-colors"
+                                                          onClick={(e) => { e.stopPropagation(); toggleChapterSelection(ch.id); }}
+                                                      >
+                                                          <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${selectedUpdateChapterIds.includes(ch.id) ? 'bg-app-accent border-app-accent' : 'border-white/20'}`}>
+                                                              {selectedUpdateChapterIds.includes(ch.id) && <div className="w-1.5 h-1.5 bg-white rounded-full"></div>}
+                                                          </div>
+                                                          <span className="truncate">Ch {ch.chapterNumber}: {ch.title}</span>
+                                                      </div>
+                                                  ))}
+                                              </div>
+
+                                              <button 
+                                                 onClick={(e) => { e.stopPropagation(); handleUpdateProfile(); }} 
+                                                 disabled={selectedUpdateChapterIds.length === 0}
+                                                 className="w-full py-2 rounded-lg font-bold shadow-md transition-all active:scale-95 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed" 
+                                                 style={{backgroundColor: settings.accentColor, color: getContrastColor(settings.accentColor)}}
+                                              >
+                                                {isGenerating ? 'Processing...' : `Update using ${selectedUpdateChapterIds.length} Chapter${selectedUpdateChapterIds.length === 1 ? '' : 's'}`}
+                                              </button>
                                          </div>
                                      )}
                                 </div>
@@ -870,7 +944,7 @@ const CharacterTile: React.FC<CharacterTileProps> = React.memo(({
                             </div>
                             {zoomLevel < 2 && (
                                 <p className="text-xs opacity-70 summary-clamped mt-2">
-                                    {character.summary || character.tagline || 'No summary provided.'}
+                                    {tagline || character.summary || 'No summary provided.'}
                                 </p>
                             )}
                         </>
@@ -932,6 +1006,7 @@ export const CharactersPanel: React.FC<CharactersPanelProps> = ({
     const [overGroup, setOverGroup] = useState<number | null>(null);
     const [interviewCharacter, setInterviewCharacter] = useState<ICharacter | null>(null);
     const [activeTab, setActiveTab] = useState<'content' | 'chest'>('content');
+    const [hideHeaders, setHideHeaders] = useState(false);
     const { renderContextMenu, renderTaggingModal } = useLockedChestSelection('characters', settings);
     const lastSortUpdate = useRef<number>(0);
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -1108,6 +1183,20 @@ export const CharactersPanel: React.FC<CharactersPanelProps> = ({
                             </button>
                         </div>
                     </div>
+                    {!isLinkPanel && activeTab === 'content' && !expandedCharacterId && (
+                        <button 
+                            onClick={() => setHideHeaders(!hideHeaders)} 
+                            className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-md transition-all whitespace-nowrap" 
+                            style={{ 
+                                backgroundColor: hideHeaders ? settings.accentColor : settings.toolbarButtonBg, 
+                                color: hideHeaders ? '#FFFFFF' : settings.toolbarText 
+                            }}
+                            title="Hide/Show Category Headings to maximize vertical space"
+                        >
+                            <ViewGridIcon className="h-3 w-3" />
+                            {hideHeaders ? 'Show Headings' : 'Hide Headings'}
+                        </button>
+                    )}
                     
                     <button
                         onClick={() => {
@@ -1154,16 +1243,18 @@ export const CharactersPanel: React.FC<CharactersPanelProps> = ({
                         );
                     })()
                 ) : (
-                    <div className="flex flex-col gap-12 w-full">
+                    <div className={`flex flex-col ${hideHeaders ? 'gap-4' : 'gap-12'} w-full`}>
                         {characterGroups.map(group => (
-                            <div key={group.id} data-group={group.id} className="space-y-4">
-                                <GroupHeader 
-                                    group={group} 
-                                    settings={settings} 
-                                    onUpdateGroup={(id, name) => dispatch({ type: 'UPDATE_CHARACTER_GROUP', payload: { id, name } })}
-                                    onDeleteGroup={(id) => dispatch({ type: 'DELETE_CHARACTER_GROUP', payload: id })}
-                                    characterCount={groups[group.id]?.length || 0}
-                                />
+                            <div key={group.id} data-group={group.id} className={hideHeaders ? "" : "space-y-4"}>
+                                {!hideHeaders && (
+                                    <GroupHeader 
+                                        group={group} 
+                                        settings={settings} 
+                                        onUpdateGroup={(id, name) => dispatch({ type: 'UPDATE_CHARACTER_GROUP', payload: { id, name } })}
+                                        onDeleteGroup={(id) => dispatch({ type: 'DELETE_CHARACTER_GROUP', payload: id })}
+                                        characterCount={groups[group.id]?.length || 0}
+                                    />
+                                )}
                                 <div 
                                     className={`rounded-xl grid gap-6 p-6 transition-all duration-300 ${overGroup === group.id ? 'ring-2' : 'bg-black/10'}`} 
                                     style={{ 

@@ -1,6 +1,6 @@
 import React, { createContext, useReducer, useContext, Dispatch, ReactNode } from 'react';
 import { produce } from 'immer';
-import type { INovelState, ICharacter, IChapter, ISnippet, SocialMediaState, AssemblyPanel, Excerpt, AssemblyViewState, BrainstormHistory, SocialPost, PlotBrainstormState, SynopsisState, IWorldItem, ChekhovsGun, WhatIfState, RewriteState, IMapLocation, Shortcut, LockedChestItem, NarrativeArchitectState, ImportNovelState, ConsistencyAuditState, ChronicleState, ChronicleEvent } from './types';
+import type { INovelState, ICharacter, IChapter, ISnippet, SocialMediaState, AssemblyPanel, Excerpt, AssemblyViewState, BrainstormHistory, SocialPost, PlotBrainstormState, SynopsisState, IWorldItem, ChekhovsGun, WhatIfState, RewriteState, IMapLocation, Shortcut, LockedChestItem, NarrativeArchitectState, ImportNovelState, ConsistencyAuditState, ChronicleState, ChronicleEvent, ActiveAITask, ScrapbookState, IScrapbookEntry } from './types';
 import { generateId } from './utils/common';
 
 // --- ACTION TYPES ---
@@ -64,6 +64,13 @@ export type Action =
   | { type: 'DELETE_LOCKED_CHEST_ITEM'; payload: string }
   | { type: 'UPDATE_LOCKED_CHEST_ITEM'; payload: { id: string; updates: Partial<LockedChestItem> } }
   | { type: 'UPDATE_ACT_NAME'; payload: { actNum: number; name: string } }
+  | { type: 'REGISTER_AI_TASK'; payload: ActiveAITask }
+  | { type: 'UPDATE_AI_TASK'; payload: { id: string; updates: Partial<ActiveAITask> } }
+  | { type: 'UNREGISTER_AI_TASK'; payload: string }
+  | { type: 'UPDATE_SCRAPBOOK_STATE'; payload: Partial<ScrapbookState> }
+  | { type: 'ADD_SCRAPBOOK_ENTRY'; payload: Partial<IScrapbookEntry> }
+  | { type: 'UPDATE_SCRAPBOOK_ENTRY'; payload: { id: string; updates: Partial<IScrapbookEntry> } }
+  | { type: 'DELETE_SCRAPBOOK_ENTRY'; payload: string }
   | { type: 'LOAD_PROJECT'; payload: INovelState };
 
 
@@ -188,6 +195,8 @@ export const initialNovelState: INovelState = {
     isSnippetDropboxCollapsed: false,
     snippetDropboxText: '',
     useSnippetTypeColors: false,
+    isImportModalOpen: false,
+    isConceptModalOpen: false,
   },
   plotBrainstormState: {
     pacingAndStructureAnalysis: null,
@@ -277,6 +286,11 @@ export const initialNovelState: INovelState = {
     1: 'Act I',
     2: 'Act II',
     3: 'Act III'
+  },
+  activeAITasks: [],
+  scrapbookState: {
+    isOpen: false,
+    entries: []
   },
 };
 
@@ -639,6 +653,48 @@ const novelReducer = (state: INovelState, action: Action): INovelState => {
         draft.actNames[action.payload.actNum] = action.payload.name;
         break;
       }
+      case 'REGISTER_AI_TASK':
+        if (!draft.activeAITasks) draft.activeAITasks = [];
+        if (!draft.activeAITasks.some(t => t.id === action.payload.id)) {
+            draft.activeAITasks.push(action.payload);
+        }
+        break;
+      case 'UPDATE_AI_TASK': {
+        const task = draft.activeAITasks?.find(t => t.id === action.payload.id);
+        if (task) {
+            Object.assign(task, action.payload.updates);
+        }
+        break;
+      }
+      case 'UNREGISTER_AI_TASK':
+        if (draft.activeAITasks) {
+            draft.activeAITasks = draft.activeAITasks.filter(t => t.id !== action.payload);
+        }
+        break;
+      case 'UPDATE_SCRAPBOOK_STATE':
+        Object.assign(draft.scrapbookState, action.payload);
+        break;
+      case 'ADD_SCRAPBOOK_ENTRY': {
+        const newEntry: IScrapbookEntry = {
+            id: generateId(),
+            type: 'text',
+            content: '',
+            timestamp: Date.now(),
+            ...action.payload,
+        };
+        draft.scrapbookState.entries.push(newEntry);
+        break;
+      }
+      case 'UPDATE_SCRAPBOOK_ENTRY': {
+        const entry = draft.scrapbookState.entries.find(e => e.id === action.payload.id);
+        if (entry) {
+            Object.assign(entry, action.payload.updates);
+        }
+        break;
+      }
+      case 'DELETE_SCRAPBOOK_ENTRY':
+        draft.scrapbookState.entries = draft.scrapbookState.entries.filter(e => e.id !== action.payload);
+        break;
       case 'LOAD_PROJECT': {
         const loadedState = action.payload;
         // If the source is 'Nové', we want to be careful not to overwrite existing Assembly data
@@ -709,6 +765,11 @@ const novelReducer = (state: INovelState, action: Action): INovelState => {
           lockedChest: isNoveSync && (!loadedState.lockedChest || loadedState.lockedChest.length === 0)
             ? state.lockedChest
             : (loadedState.lockedChest || initialNovelState.lockedChest),
+          scrapbookState: {
+            ...(isNoveSync ? state.scrapbookState : initialNovelState.scrapbookState),
+            ...(loadedState.scrapbookState || {})
+          },
+          activeAITasks: [], // Don't persist active tasks
         };
         
         if (mergedState.chapters) {

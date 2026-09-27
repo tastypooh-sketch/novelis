@@ -32,6 +32,7 @@ export interface IChapter {
   analysis?: string; // AI-generated analysis of story elements
   photo?: string | null;
   imageColor?: string;
+  imageAccentColor?: string;
   isPhotoLocked?: boolean;
   tagline?: string;
   keywords?: string[];
@@ -82,6 +83,7 @@ export interface IWorldItem {
   description: string;
   tagline?: string;
   imageColor?: string;
+  imageAccentColor?: string;
   keywords?: string[];
   isPhotoLocked?: boolean;
 }
@@ -196,6 +198,7 @@ export interface ICharacter {
   profile: string;
   tagline?: string;
   imageColor?: string;
+  imageAccentColor?: string;
   keywords?: string[];
   accentStyle?: 'left-top-ingress' | 'outline' | 'corner-diagonal';
   isPhotoLocked?: boolean;
@@ -221,7 +224,7 @@ export interface ISnippet {
   isUsed: boolean;
 }
 
-export type AssemblyPanel = 'chapters' | 'characters' | 'snippets' | 'social' | 'world' | 'plot' | 'synopsis' | 'chronicle';
+export type AssemblyPanel = 'chapters' | 'characters' | 'snippets' | 'social' | 'world' | 'plot' | 'synopsis' | 'chronicle' | 'scrapbook';
 
 export interface Excerpt {
     id: string;
@@ -446,6 +449,8 @@ export interface AssemblyViewState {
     isSnippetDropboxCollapsed?: boolean;
     snippetDropboxText: string;
     useSnippetTypeColors?: boolean;
+    isImportModalOpen?: boolean;
+    isConceptModalOpen?: boolean;
 }
 
 export interface ImportNovelState {
@@ -494,6 +499,34 @@ export interface LockedChestItem {
     timestamp: number;
 }
 
+export interface ActiveAITask {
+    id: string;
+    label: string;
+    type: 'profile' | 'chapter' | 'snippet' | 'world' | 'plot' | 'social' | 'other';
+    status: 'working' | 'completed' | 'error';
+    contexts?: string[]; // Multiple contexts for visibility (e.g. ['manuscript'], ['assembly-chapters'])
+    error?: string;
+}
+
+export interface IScrapbookEntry {
+    id: string;
+    type: 'text' | 'image';
+    content: string; // text content or image URL
+    title?: string;
+    timestamp: number;
+    width?: number; // for grid layout
+    height?: number; // for grid layout
+    isPinned?: boolean;
+    color?: string; // sticky note style color
+    x?: number; // absolute position for freeform
+    y?: number; // absolute position for freeform
+}
+
+export interface ScrapbookState {
+    isOpen: boolean;
+    entries: IScrapbookEntry[];
+}
+
 export interface INovelState {
     characters: ICharacter[];
     chapters: IChapter[];
@@ -519,5 +552,7 @@ export interface INovelState {
     rewriteState: RewriteState; // Added Rewrite state
     sessionSpellingErrors: Record<string, number>; // word -> count
     autoCorrectDictionary: Record<string, string>; // word -> correction
+    activeAITasks: ActiveAITask[];
+    scrapbookState: ScrapbookState;
     source?: string;
 }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import type { EditorSettings } from '../../types';
-import { useNovelState } from '../../NovelContext';
+import { useNovelState, useNovelDispatch } from '../../NovelContext';
 import { SearchIcon, BookIcon, UserCircleIcon, WorldIcon, CogIcon } from './Icons';
 
 interface CommandPaletteProps {
@@ -23,6 +23,7 @@ interface SearchResult {
 
 export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, settings, onNavigate, onToggleFocus, onToggleFullscreen }) => {
     const { chapters, characters, worldItems } = useNovelState();
+    const dispatch = useNovelDispatch();
     const [query, setQuery] = useState('');
     const [selectedIndex, setSelectedIndex] = useState(0);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -44,6 +45,16 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose,
         const list: SearchResult[] = [];
 
         // Actions
+        if ('scrapbook'.includes(lowerQuery) || 'notes'.includes(lowerQuery) || 'ideas'.includes(lowerQuery)) {
+            list.push({
+                id: 'action-scrapbook',
+                label: 'Open Scrapbook',
+                subLabel: 'Quick ideas, images, and loose notes',
+                type: 'action',
+                icon: <CogIcon className="h-4 w-4" />,
+                action: () => onNavigate('assembly', 'scrapbook')
+            });
+        }
         if ('focus mode'.includes(lowerQuery) || 'distraction free'.includes(lowerQuery)) {
             list.push({
                 id: 'action-focus',
