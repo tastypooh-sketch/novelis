@@ -5,11 +5,13 @@ import type { EditorSettings, ICharacter, TileBackgroundStyle, ICharacterGroup }
 import { useNovelState, useNovelDispatch } from '../../NovelContext';
 import { useAssemblyAI } from './AssemblyAIContext';
 import MarkdownRenderer from '../common/MarkdownRenderer';
-import { ChevronDownIcon, SparklesIconOutline, RevertIcon, TrashIconOutline, StarIcon, StarIconOutline, CameraIcon, UserCircleIcon, BrushIcon, LockClosedIconOutline, LockOpenIconOutline, ChevronUpIcon, UserGroupIcon, ViewGridIcon, PlusIcon, ArchiveIcon, DownloadIcon, MessageIcon } from '../common/Icons';
+import { ChevronDownIcon, SparklesIconOutline, RevertIcon, TrashIconOutline, StarIcon, StarIconOutline, CameraIcon, UserCircleIcon, BrushIcon, LockClosedIconOutline, LockOpenIconOutline, ChevronUpIcon, UserGroupIcon, ViewGridIcon, PlusIcon, ArchiveIcon, DownloadIcon, MessageIcon, FocusIcon, UnfocusIcon, SpinnerIcon } from '../common/Icons';
 import { isColorLight, shadeColor, getImageColor, harmonizeColor, getContrastColor, getTileColorsFromImage } from '../../utils/colorUtils';
 import { AIError } from '../common/AIError';
+import { useDialog } from '../common/DialogProvider';
 import { LockedChestTab, useLockedChestSelection } from '../common/LockedChest';
 import { CharacterInterviewModal } from './modals/CharacterInterviewModal';
+import { CollageExportModal, CollageExportConfig } from './modals/CollageExportModal';
 
 // --- UTILS & HOOKS ---
 const useAutosizeTextArea = (
@@ -999,20 +1001,24 @@ export const CharactersPanel: React.FC<CharactersPanelProps> = ({
         { id: 1, name: 'Protagonists' },
         { id: 2, name: 'Antagonists' },
         { id: 3, name: 'Secondary' },
-    ] } = useNovelState();
+    ], assemblyState } = useNovelState();
+    const { isFocusMode = false } = assemblyState;
     
     const [orderedCharacters, setOrderedCharacters] = useState(characters);
     const [dragState, setDragState] = useState<{draggedIds: string[] | null, overId: string | null}>({draggedIds: null, overId: null});
     const [overGroup, setOverGroup] = useState<number | null>(null);
     const [interviewCharacter, setInterviewCharacter] = useState<ICharacter | null>(null);
     const [activeTab, setActiveTab] = useState<'content' | 'chest'>('content');
-    const [hideHeaders, setHideHeaders] = useState(false);
+    const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+    const [isSyncing, setIsSyncing] = useState(false);
+    
     const { renderContextMenu, renderTaggingModal } = useLockedChestSelection('characters', settings);
     const lastSortUpdate = useRef<number>(0);
     const scrollRef = useRef<HTMLDivElement>(null);
     const isLinkPanel = variant === 'link-panel';
     const dispatch = useNovelDispatch();
     const isDarkMode = !isColorLight(settings.textColor);
+    const dialog = useDialog();
 
     useEffect(() => {
         if (!dragState.draggedIds) {
@@ -1020,6 +1026,16 @@ export const CharactersPanel: React.FC<CharactersPanelProps> = ({
         }
     }, [characters, dragState.draggedIds]);
     
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && isFocusMode) {
+                dispatch({ type: 'UPDATE_ASSEMBLY_VIEW_STATE', payload: { isFocusMode: false } });
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isFocusMode, dispatch]);
+
     const handleToggleExpand = useCallback((id: string) => {
         const newExpandedId = expandedCharacterId === id ? null : id;
         setExpandedCharacterId(newExpandedId);
@@ -1035,6 +1051,128 @@ export const CharactersPanel: React.FC<CharactersPanelProps> = ({
     const handleInterview = useCallback((character: ICharacter) => {
         setInterviewCharacter(character);
     }, []);
+
+    const handleExportCharacterCollage = async (config: CollageExportConfig) => {
+        const charsWithPhotos = characters.filter(c => !!c.photo);
+        if (charsWithPhotos.length === 0) {
+            dialog.alert("No characters have photos to include in a collage.", "No Images Found");
+            return;
+        }
+
+        setIsSyncing(true);
+        try {
+            // Load all images
+            const loadedImages = await Promise.all(charsWithPhotos.map(c => {
+                return new Promise<{ img: HTMLImageElement; character: ICharacter }>((resolve, reject) => {
+                    const img = new Image();
+                    img.crossOrigin = "anonymous";
+                    img.onload = () => resolve({ img, character: c });
+                    img.onerror = reject;
+                    img.src = c.photo!;
+                });
+            }));
+
+            // Pagination logic
+            let itemsPerPage = loadedImages.length;
+            if (config.mode === 'fixed-grid') {
+                itemsPerPage = config.fixedGridCount;
+            } else if (config.mode === 'fixed-file') {
+                itemsPerPage = Math.ceil(loadedImages.length / config.fixedFileCount);
+            } else {
+                itemsPerPage = 12;
+            }
+
+            const pageCount = Math.ceil(loadedImages.length / itemsPerPage);
+            
+            for (let p = 0; p < pageCount; p++) {
+                const pageImages = loadedImages.slice(p * itemsPerPage, (p + 1) * itemsPerPage);
+                const cols = Math.ceil(Math.sqrt(pageImages.length));
+                const rows = Math.ceil(pageImages.length / cols);
+                const gutter = 40;
+                const titleHeight = 150;
+                const labelHeight = 70;
+                const tileWidth = 800;
+                const tileHeight = 800;
+
+                const canvas = document.createElement('canvas');
+                canvas.width = (cols * tileWidth) + ((cols + 1) * gutter);
+                canvas.height = (rows * (tileHeight + labelHeight)) + ((rows + 1) * gutter) + titleHeight;
+
+                const ctx = canvas.getContext('2d');
+                if (!ctx) throw new Error("Canvas context failed");
+
+                ctx.fillStyle = settings.backgroundColor || '#111827';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                const projectTitle = settings.bookTitle || "NOVELIS CHARACTERS";
+                ctx.fillStyle = settings.accentColor || '#2563eb';
+                ctx.font = `bold 70px serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(projectTitle.toUpperCase(), canvas.width / 2, 70);
+                
+                ctx.fillStyle = (settings.textColor || '#FFFFFF') + '80';
+                ctx.font = `italic 30px sans-serif`;
+                ctx.fillText(`Character Gallery - Page ${p + 1} of ${pageCount}`, canvas.width / 2, 125);
+
+                pageImages.forEach((data, i) => {
+                    const col = i % cols;
+                    const row = Math.floor(i / cols);
+                    const x = gutter + (col * (tileWidth + gutter));
+                    const y = titleHeight + gutter + (row * (tileHeight + labelHeight + gutter));
+
+                    ctx.shadowColor = 'rgba(0,0,0,0.6)';
+                    ctx.shadowBlur = 40;
+                    ctx.shadowOffsetX = 0;
+                    ctx.shadowOffsetY = 20;
+                    ctx.fillStyle = settings.toolbarBg || '#1f2937';
+                    const radius = 20;
+                    ctx.beginPath();
+                    ctx.roundRect(x, y, tileWidth, tileHeight + labelHeight, radius);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                    ctx.shadowOffsetY = 0;
+
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.roundRect(x, y, tileWidth, tileHeight, [radius, radius, 0, 0]);
+                    ctx.clip();
+                    
+                    const scale = Math.min(tileWidth / data.img.width, tileHeight / data.img.height);
+                    const dw = data.img.width * scale;
+                    const dh = data.img.height * scale;
+                    const dx = x + (tileWidth - dw) / 2;
+                    const dy = y + (tileHeight - dh) / 2;
+                    ctx.fillStyle = '#000000';
+                    ctx.fillRect(x, y, tileWidth, tileHeight);
+                    ctx.drawImage(data.img, dx, dy, dw, dh);
+                    ctx.restore();
+
+                    ctx.fillStyle = settings.textColor || '#FFFFFF';
+                    ctx.font = `bold 32px sans-serif`;
+                    ctx.textAlign = 'left';
+                    ctx.fillText(data.character.name.toUpperCase(), x + 30, y + tileHeight + 45);
+                    
+                    ctx.strokeStyle = `${settings.accentColor}40`;
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.roundRect(x, y, tileWidth, tileHeight + labelHeight, radius);
+                    ctx.stroke();
+                });
+
+                const dataUrl = canvas.toDataURL("image/png");
+                const link = document.createElement('a');
+                link.href = dataUrl;
+                link.download = `${projectTitle.replace(/\s+/g, '_')}-characters-p${p + 1}-${new Date().getTime()}.png`;
+                link.click();
+            }
+        } catch (err) {
+            console.error("Collage generation failed", err);
+            dialog.error("Failed to generate character collage.", "Export Failed");
+        } finally {
+            setIsSyncing(false);
+        }
+    };
 
     const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
         const id = e.currentTarget.dataset.characterId;
@@ -1137,7 +1275,7 @@ export const CharactersPanel: React.FC<CharactersPanelProps> = ({
         <div className="w-full h-full flex flex-col">
             {renderContextMenu()}
             {renderTaggingModal()}
-            {!isLinkPanel && (
+            {!isLinkPanel && !isFocusMode && (
                 <div className="p-4 border-b flex flex-wrap justify-between items-center z-30 shadow-sm gap-4" style={{ backgroundColor: settings.toolbarBg, borderColor: settings.toolbarInputBorderColor }}>
                     <div className="flex items-center gap-6">
                         <div className="flex items-center gap-2">
@@ -1185,30 +1323,41 @@ export const CharactersPanel: React.FC<CharactersPanelProps> = ({
                     </div>
                     {!isLinkPanel && activeTab === 'content' && !expandedCharacterId && (
                         <button 
-                            onClick={() => setHideHeaders(!hideHeaders)} 
-                            className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-md transition-all whitespace-nowrap" 
+                            onClick={() => dispatch({ type: 'UPDATE_ASSEMBLY_VIEW_STATE', payload: { isFocusMode: true } })} 
+                            className="flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded-md transition-all whitespace-nowrap shadow-sm" 
                             style={{ 
-                                backgroundColor: hideHeaders ? settings.accentColor : settings.toolbarButtonBg, 
-                                color: hideHeaders ? '#FFFFFF' : settings.toolbarText 
+                                backgroundColor: settings.toolbarButtonBg, 
+                                color: settings.toolbarText 
                             }}
-                            title="Hide/Show Category Headings to maximize vertical space"
+                            title="Enter Focus Mode to maximize screen space"
                         >
-                            <ViewGridIcon className="h-3 w-3" />
-                            {hideHeaders ? 'Show Headings' : 'Hide Headings'}
+                            <FocusIcon className="h-4 w-4" />
+                            Focus Mode
                         </button>
                     )}
                     
-                    <button
-                        onClick={() => {
-                            const name = prompt("Enter category name:");
-                            if (name) dispatch({ type: 'ADD_CHARACTER_GROUP', payload: name });
-                        }}
-                        className="px-3 py-1.5 rounded-md text-xs font-bold flex items-center gap-2 shadow-sm transition-transform active:scale-95"
-                        style={{ backgroundColor: settings.toolbarButtonBg, color: settings.toolbarText }}
-                    >
-                        <PlusIcon className="h-4 w-4" />
-                        Add Category
-                    </button>
+                        <button
+                            onClick={() => {
+                                const name = prompt("Enter category name:");
+                                if (name) dispatch({ type: 'ADD_CHARACTER_GROUP', payload: name });
+                            }}
+                            className="px-3 py-1.5 rounded-md text-xs font-bold flex items-center gap-2 shadow-sm transition-transform active:scale-95"
+                            style={{ backgroundColor: settings.toolbarButtonBg, color: settings.toolbarText }}
+                        >
+                            <PlusIcon className="h-4 w-4" />
+                            Add Category
+                        </button>
+
+                        <button 
+                            onClick={() => setIsExportModalOpen(true)} 
+                            disabled={isSyncing}
+                            className="flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded-md transition-all whitespace-nowrap shadow-sm" 
+                            style={{ backgroundColor: settings.toolbarButtonBg, color: settings.toolbarText }}
+                            title="Export all character headshots as a collage (PNG)"
+                        >
+                            {isSyncing ? <SpinnerIcon className="h-4 w-4 animate-spin" /> : <ViewGridIcon className="h-4 w-4" />}
+                            Headshot Collage
+                        </button>
                 </div>
             )}
             
@@ -1243,10 +1392,10 @@ export const CharactersPanel: React.FC<CharactersPanelProps> = ({
                         );
                     })()
                 ) : (
-                    <div className={`flex flex-col ${hideHeaders ? 'gap-4' : 'gap-12'} w-full`}>
+                    <div className={`flex flex-col ${isFocusMode ? 'gap-4' : 'gap-12'} w-full`}>
                         {characterGroups.map(group => (
-                            <div key={group.id} data-group={group.id} className={hideHeaders ? "" : "space-y-4"}>
-                                {!hideHeaders && (
+                            <div key={group.id} data-group={group.id} className={isFocusMode ? "" : "space-y-4"}>
+                                {!isFocusMode && (
                                     <GroupHeader 
                                         group={group} 
                                         settings={settings} 
@@ -1256,10 +1405,10 @@ export const CharactersPanel: React.FC<CharactersPanelProps> = ({
                                     />
                                 )}
                                 <div 
-                                    className={`rounded-xl grid gap-6 p-6 transition-all duration-300 ${overGroup === group.id ? 'ring-2' : 'bg-black/10'}`} 
+                                    className={`rounded-xl grid gap-6 transition-all duration-300 ${isFocusMode ? 'p-0' : 'p-6 bg-black/10'} ${overGroup === group.id ? 'ring-2' : ''}`} 
                                     style={{ 
                                         ['--tw-ring-color' as any]: settings.accentColor,
-                                        backgroundColor: overGroup === group.id ? `${settings.accentColor}10` : 'rgba(0,0,0,0.15)',
+                                        backgroundColor: overGroup === group.id ? `${settings.accentColor}10` : (isFocusMode ? 'transparent' : 'rgba(0,0,0,0.15)'),
                                         gridTemplateColumns: isLinkPanel ? '1fr' : `repeat(auto-fill, minmax(${zoomLevel === 0 ? '16rem' : zoomLevel === 1 ? '12rem' : zoomLevel === 2 ? '8rem' : '5rem'}, 1fr))`
                                     }}
                                 >
@@ -1299,6 +1448,18 @@ export const CharactersPanel: React.FC<CharactersPanelProps> = ({
                     </div>
                 )}
             </div>
+
+            {isFocusMode && (
+                <button 
+                    onClick={() => dispatch({ type: 'UPDATE_ASSEMBLY_VIEW_STATE', payload: { isFocusMode: false } })}
+                    className="fixed bottom-8 right-8 z-[100] p-4 rounded-full shadow-2xl transition-all hover:scale-110 active:scale-95 group"
+                    style={{ backgroundColor: settings.accentColor, color: getContrastColor(settings.accentColor) }}
+                    title="Exit Focus Mode (Esc)"
+                >
+                    <UnfocusIcon className="h-6 w-6" />
+                    <span className="absolute right-full mr-4 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-lg bg-black/80 text-white text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">Exit Focus Mode</span>
+                </button>
+            )}
             {interviewCharacter && (
                 <CharacterInterviewModal 
                     character={interviewCharacter} 
@@ -1306,6 +1467,15 @@ export const CharactersPanel: React.FC<CharactersPanelProps> = ({
                     settings={settings} 
                 />
             )}
+
+            <CollageExportModal 
+                isOpen={isExportModalOpen}
+                onClose={() => setIsExportModalOpen(false)}
+                onExport={handleExportCharacterCollage}
+                settings={settings}
+                itemCount={characters.filter(c => !!c.photo).length}
+                title="Character Headshots Collage"
+            />
         </div>
     );
 };

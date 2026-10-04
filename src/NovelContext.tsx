@@ -191,6 +191,7 @@ export const initialNovelState: INovelState = {
     },
     chapterZoomLevel: 0,
     characterZoomLevel: 0,
+    isFocusMode: false,
     isSnippetSpreadsheetView: false,
     isSnippetDropboxCollapsed: false,
     snippetDropboxText: '',

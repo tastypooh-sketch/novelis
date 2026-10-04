@@ -50,6 +50,8 @@ interface ManuscriptProps {
     onSaveToFolder: (forceNewFolder?: boolean) => Promise<boolean>;
     onOpenProjectFolder: () => void;
     onRewriteParagraphs: (text: string, context: string) => Promise<void>;
+    onToggleScrapbook: () => void;
+    isScrapbookOpen: boolean;
 }
 
 type ModalType = 'findReplace' | 'shortcuts' | 'stats' | 'customizeToolbar' | 'history' | 'voiceSettings' | 'designGallery' | 'readAloud' | 'spellCheck' | 'userGuide' | 'importNovel' | 'consistencyAudit';
@@ -174,7 +176,9 @@ export const Manuscript: React.FC<ManuscriptProps> = ({
     isSaving: isSavingProp,
     onSaveToFolder,
     onOpenProjectFolder,
-    onRewriteParagraphs
+    onRewriteParagraphs,
+    onToggleScrapbook,
+    isScrapbookOpen
 }) => {
     const dialog = useDialog();
     const fullState = useNovelState();
@@ -865,6 +869,80 @@ export const Manuscript: React.FC<ManuscriptProps> = ({
         }, 150);
     }, [layout.stride]);
 
+    const handlePaste = useCallback((e: React.ClipboardEvent) => {
+        e.preventDefault();
+        const html = e.clipboardData.getData('text/html');
+        const text = e.clipboardData.getData('text/plain');
+
+        let cleanContent = '';
+
+        if (html) {
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html;
+
+            const cleanNode = (node: Node): string => {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    return node.textContent || '';
+                }
+                if (node.nodeType === Node.ELEMENT_NODE) {
+                    const element = node as HTMLElement;
+                    const tagName = element.tagName.toLowerCase();
+                    
+                    // Preserve essential narrative formatting
+                    if (tagName === 'i' || tagName === 'em') {
+                        const children = Array.from(element.childNodes).map(cleanNode).join('');
+                        return `<i>${children}</i>`;
+                    }
+                    
+                    // Handle block elements and breaks to ensure Novelis paragraph structure
+                    if (tagName === 'p' || tagName === 'div' || tagName === 'h1' || tagName === 'h2' || tagName === 'h3' || tagName === 'h4' || tagName === 'h5' || tagName === 'h6' || tagName === 'li' || tagName === 'br') {
+                        const children = Array.from(element.childNodes).map(cleanNode).join('');
+                        if (tagName === 'br' && !children) return '<br>';
+                        return `<div>${children || '<br>'}</div>`;
+                    }
+
+                    // For other tags, just strip them but keep children
+                    return Array.from(element.childNodes).map(cleanNode).join('');
+                }
+                return '';
+            };
+
+            cleanContent = Array.from(tempDiv.childNodes).map(cleanNode).join('');
+            
+            // Ensure proper wrapping and remove nested redundant divs that might have been created
+            const wrapper = document.createElement('div');
+            wrapper.innerHTML = cleanContent;
+            
+            let finalHtml = '';
+            const processFinalNodes = (nodes: NodeList) => {
+                Array.from(nodes).forEach(node => {
+                    if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).tagName === 'DIV') {
+                        const div = node as HTMLElement;
+                        // If it's a top-level div, keep it. If it has nested divs, flatten or handle them.
+                        if (div.querySelector('div')) {
+                            processFinalNodes(div.childNodes);
+                        } else {
+                            finalHtml += `<div>${div.innerHTML}</div>`;
+                        }
+                    } else if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) {
+                        finalHtml += `<div>${node.textContent}</div>`;
+                    } else if (node.nodeType === Node.ELEMENT_NODE && ((node as HTMLElement).tagName === 'I' || (node as HTMLElement).tagName === 'EM')) {
+                         finalHtml += `<div>${(node as HTMLElement).outerHTML}</div>`;
+                    }
+                });
+            };
+            processFinalNodes(wrapper.childNodes);
+            cleanContent = finalHtml || '<div><br></div>';
+        } else {
+            // Fallback to plain text, splitting by newlines and wrapping in divs for Novelis
+            cleanContent = text.split(/\r?\n/).map(line => `<div>${line.trim() || '<br>'}</div>`).join('');
+        }
+
+        // Insert cleaned content using insertHTML to maintain undo buffer and selection
+        document.execCommand('insertHTML', false, cleanContent);
+        handleContentChange(editorRef.current?.innerHTML || '');
+    }, [handleContentChange]);
+
     useEffect(() => {
         if (ttsAudioElementRef.current) {
             if (settings.ttsSpeed) ttsAudioElementRef.current.playbackRate = settings.ttsSpeed;
@@ -1004,7 +1082,7 @@ export const Manuscript: React.FC<ManuscriptProps> = ({
                                 fontFamily: settings.fontFamily, fontSize: `${settings.fontSize}em`, color: settings.textColor, lineHeight: settings.lineHeight || 1.8, textAlign: settings.textAlign === 'justify' ? 'justify' : 'left', 
                                 hyphens: settings.textAlign === 'justify' ? 'auto' : 'manual', WebkitHyphens: settings.textAlign === 'justify' ? 'auto' : 'manual', height: 'calc(100% - 3.5rem)', columnFill: 'auto', columnGap: `${layout.gap}px`, columnWidth: `${layout.colWidth}px`, columnCount: layout.columns, boxSizing: 'content-box', width: typeof layout.colWidth === 'number' ? `${(layout.colWidth * layout.columns) + (layout.gap * (layout.columns - 1))}px` : '100%', paddingTop: '1.5rem', paddingBottom: '2rem', paddingLeft: `${layout.sideMargin}px`, paddingRight: `${layout.sideMargin}px`, orphans: 3, widows: 3, opacity: isTransitioning ? 0 : 1, transition: 'opacity 0.15s ease-in-out', transform: 'translateZ(0)' 
                             }} 
-                            onBeforeInput={handleBeforeInput} onInput={handleInput} onKeyDown={handleKeyDown} onBlur={checkAndEnforceCaretVisibility} onContextMenu={handleContextMenu} 
+                            onBeforeInput={handleBeforeInput} onInput={handleInput} onKeyDown={handleKeyDown} onBlur={checkAndEnforceCaretVisibility} onContextMenu={handleContextMenu} onPaste={handlePaste} 
                         />
                     </div>
                     {isFocusMode && <button onClick={onToggleFocusMode} className="absolute top-4 right-4 z-50 p-2 rounded-full transition-all duration-300 backdrop-blur-[2px] opacity-50 hover:opacity-100" style={{ backgroundColor: settings.toolbarBg ? `${settings.toolbarBg}40` : 'rgba(0,0,0,0.2)', color: 'var(--toolbar-text)' }} title="Exit Focus Mode"><UnfocusIcon /></button>}
@@ -1018,7 +1096,44 @@ export const Manuscript: React.FC<ManuscriptProps> = ({
                     <div className="absolute bottom-4 right-8 z-10 text-xs font-sans pointer-events-none select-none transition-opacity duration-300 backdrop-blur-sm px-2 py-1 rounded" style={{ color: settings.textColor, opacity: 0.6, backgroundColor: settings.toolbarBg ? `${settings.toolbarBg}40` : 'transparent' }}>{layout.columns === 1 ? <span>Page {pageInfo.current} of {pageInfo.total}</span> : <span>Pages {pageInfo.current} and {pageInfo.current + 1} of {pageInfo.total}</span>}</div>
                 </div>
                 <div className={toolbarContainerClasses}>
-                    <Toolbar settings={settings} onSettingsChange={settings => onSettingsChange(settings)} chapters={chapters} activeChapterId={activeChapterId} onSelectChapter={onActiveChapterIdChange} isSaving={isSaving} activeChapterWordCount={activeChapterWordCount} sessionWordCount={sessionWordCount} writingGoals={writingGoals} onSaveToFolder={async (forceNewFolder?: boolean) => { if (isSavingProp) return false; return onSaveToFolder(forceNewFolder).then(() => true); }} onDownloadRtf={() => { const rtf = generateRtfForChapters(chapters); downloadFile('novel.rtf', rtf, 'application/rtf'); }} isFocusMode={isFocusMode} onToggleFocusMode={onToggleFocusMode} isNotesPanelOpen={isNotesPanelOpen} onToggleNotesPanel={handleToggleNotesPanel} onToggleModal={(modal) => modal === 'findReplace' ? setIsFindReplaceOpen(p => !p) : setActiveModal(modal)} isFindReplaceActive={isFindReplaceOpen} isSoundEnabled={isSoundEnabled} onToggleSound={() => onSettingsChange({ isSoundEnabled: !isSoundEnabled })} isFullscreen={isFullscreen} onToggleFullscreen={() => { if (!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen(); setIsFullscreen(!isFullscreen); }} isSinglePageView={false} isSpellcheckEnabled={isSpellcheckEnabled} onToggleSpellcheck={() => setIsSpellcheckEnabled(p => !p)} onToggleTransitionStyle={() => onSettingsChange({ transitionStyle: settings.transitionStyle === 'scroll' ? 'fade' : 'scroll' })} hasDirectory={!!directoryHandle || !!projectPath} onToggleReadAloud={() => setActiveModal('readAloud')} ttsStatus={ttsStatus} onExportNove={handleExportNove} onExportStandaloneNove={handleExportStandaloneNove} onExportBlankNove={handleExportBlankNove} onImportNove={() => setActiveModal('importNovel')} onOpenProjectFolder={onOpenProjectFolder} updateAvailable={!!availableUpdate} />
+                    <Toolbar 
+                        settings={settings} 
+                        onSettingsChange={settings => onSettingsChange(settings)} 
+                        chapters={chapters} 
+                        activeChapterId={activeChapterId} 
+                        onSelectChapter={onActiveChapterIdChange} 
+                        isSaving={isSaving} 
+                        activeChapterWordCount={activeChapterWordCount} 
+                        sessionWordCount={sessionWordCount} 
+                        writingGoals={writingGoals} 
+                        onSaveToFolder={async (forceNewFolder?: boolean) => { if (isSavingProp) return false; return onSaveToFolder(forceNewFolder).then(() => true); }} 
+                        onDownloadRtf={() => { const rtf = generateRtfForChapters(chapters); downloadFile('novel.rtf', rtf, 'application/rtf'); }} 
+                        isFocusMode={isFocusMode} 
+                        onToggleFocusMode={onToggleFocusMode} 
+                        isNotesPanelOpen={isNotesPanelOpen} 
+                        onToggleNotesPanel={handleToggleNotesPanel} 
+                        onToggleModal={(modal) => modal === 'findReplace' ? setIsFindReplaceOpen(p => !p) : setActiveModal(modal)} 
+                        isFindReplaceActive={isFindReplaceOpen} 
+                        isSoundEnabled={isSoundEnabled} 
+                        onToggleSound={() => onSettingsChange({ isSoundEnabled: !isSoundEnabled })} 
+                        isFullscreen={isFullscreen} 
+                        onToggleFullscreen={() => { if (!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen(); setIsFullscreen(!isFullscreen); }} 
+                        isSinglePageView={false} 
+                        isSpellcheckEnabled={isSpellcheckEnabled} 
+                        onToggleSpellcheck={() => setIsSpellcheckEnabled(p => !p)} 
+                        onToggleTransitionStyle={() => onSettingsChange({ transitionStyle: settings.transitionStyle === 'scroll' ? 'fade' : 'scroll' })} 
+                        hasDirectory={!!directoryHandle || !!projectPath} 
+                        onToggleReadAloud={() => setActiveModal('readAloud')} 
+                        ttsStatus={ttsStatus} 
+                        onExportNove={handleExportNove} 
+                        onExportStandaloneNove={handleExportStandaloneNove} 
+                        onExportBlankNove={handleExportBlankNove} 
+                        onImportNove={() => setActiveModal('importNovel')} 
+                        onOpenProjectFolder={onOpenProjectFolder} 
+                        updateAvailable={!!availableUpdate}
+                        onToggleScrapbook={onToggleScrapbook}
+                        isScrapbookOpen={isScrapbookOpen}
+                    />
                 </div>
             </div>
             {isNotesPanelOpen && <div className="flex-shrink-0 h-full relative border-l" style={{ width: `${notesPanelWidth}px`, borderColor: settings.toolbarInputBorderColor }}><NotesPanel settings={settings} activeChapter={activeChapter} onChapterDetailsChange={handleChapterDetailsChange} initialWidth={notesPanelWidth} onWidthChange={setNotesPanelWidth} allChapters={chapters} allCharacters={characters} generateId={generateId} /></div>}

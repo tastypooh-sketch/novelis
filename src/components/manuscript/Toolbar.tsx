@@ -4,7 +4,7 @@ import {
     HistoryIcon, StatsIcon, NoteIcon, SearchIcon, KeyboardIcon, PageTransitionIcon, SpellcheckIcon, 
     SpeakerOnIcon, SpeakerOffIcon, ExitFullscreenIcon, EnterFullscreenIcon, UnfocusIcon, FocusIcon, CogIcon, EarIcon,
     BrushIcon, JustifyIcon, BookOpenIcon, ProofreadIcon, ImportIcon, SaveIcon, LineHeightIcon, ChevronDownIcon,
-    SparklesIconOutline
+    SparklesIconOutline, ScrapbookIcon
 } from '../common/Icons';
 
 type ModalType = 'findReplace' | 'shortcuts' | 'stats' | 'customizeToolbar' | 'history' | 'voiceSettings' | 'designGallery' | 'readAloud' | 'spellCheck' | 'userGuide' | 'consistencyAudit';
@@ -95,6 +95,8 @@ interface ToolbarProps {
   onExportBlankNove: () => void;
   onImportNove: () => void;
   onOpenProjectFolder: () => void;
+  onToggleScrapbook: () => void;
+  isScrapbookOpen?: boolean;
   updateAvailable?: boolean;
 }
 
@@ -113,6 +115,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     onExportBlankNove,
     onImportNove,
     onOpenProjectFolder,
+    onToggleScrapbook,
+    isScrapbookOpen = false,
     updateAvailable = false
 }) => {
   const fontOptions = ["Lora", "Merriweather", "Times New Roman", "Bookman Old Style", "Georgia", "Roboto", "Open Sans", "Arial", "Inter", "Inconsolata"];
@@ -268,6 +272,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <ToolbarButton title="Toggle Spell Check (Native Browser)" onClick={onToggleSpellcheck} settings={settings} isVisible={settings.toolbarVisibility?.spellcheck} isActive={isSpellcheckEnabled}><SpellcheckIcon /></ToolbarButton>
         <ToolbarButton title="AI Proofreader" onClick={() => onToggleModal('spellCheck')} settings={settings} isVisible={settings.toolbarVisibility?.spellcheck}><ProofreadIcon /></ToolbarButton>
         <ToolbarButton title="Narrative Consistency Auditor" onClick={() => onToggleModal('consistencyAudit')} settings={settings}><SparklesIconOutline className="h-5 w-5" /></ToolbarButton>
+        <ToolbarButton title="Open Scrapbook & Loose Concepts" onClick={onToggleScrapbook} settings={settings} isActive={isScrapbookOpen}><ScrapbookIcon className="h-5 w-5" /></ToolbarButton>
         <div className="flex items-center">
             <ToolbarButton title="Toggle Sound" onClick={onToggleSound} settings={settings} isVisible={settings.toolbarVisibility?.sound} isActive={isSoundEnabled}>{isSoundEnabled ? <SpeakerOnIcon /> : <SpeakerOffIcon />}</ToolbarButton>
             {isSoundEnabled && settings.toolbarVisibility?.sound && (

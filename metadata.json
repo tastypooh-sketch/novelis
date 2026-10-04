@@ -1,6 +1,6 @@
 {
-  "name": "9.0.05 Novelis (Scrapbook)",
-  "description": "A \u0027Novel Operating System\u0027 featuring a horizontal \u0027infinite spread\u0027 editor. Fixed Nove.html standalone export crashes and updated UI text for blank exports.",
+  "name": "10.03 Novelis",
+  "description": "A 'Novel Operating System' featuring a horizontal 'infinite spread' editor. Fixed Nove.html standalone export crashes and updated UI text for blank exports.",
   "requestFramePermissions": [
     "camera",
     "microphone"

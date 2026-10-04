@@ -13,7 +13,7 @@ import { SocialMediaPanel } from './components/assembly/social';
 import { PlotBrainstormPanel } from './components/assembly/plot';
 import { SynopsisPanel } from './components/assembly/synopsis';
 import { WorldPanel } from './components/assembly/world';
-import { ScrapbookModal } from './components/assembly/modals/ScrapbookModal';
+import { ScrapbookPanel } from './components/assembly/modals/ScrapbookModal';
 import { ChroniclePanel } from './components/assembly/ChroniclePanel';
 import { PlusIcon, DocumentTextIcon, TileBackgroundIcon, ImportIcon, SparklesIconOutline, ScrapbookIcon } from './components/common/Icons';
 import { generateId, extractJson } from './utils/common';
@@ -115,10 +115,9 @@ interface AssemblyHeaderProps {
     onExportManuscriptRtf: () => void;
     onImport: () => void;
     onOpenConcept: () => void;
-    onOpenScrapbook: () => void;
 }
 
-const AssemblyHeader: React.FC<AssemblyHeaderProps> = ({ settings, activePanel, onPanelChange, onAdd, onSettingsChange, onExport, onExportManuscriptRtf, onImport, onOpenConcept, onOpenScrapbook }) => {
+const AssemblyHeader: React.FC<AssemblyHeaderProps> = ({ settings, activePanel, onPanelChange, onAdd, onSettingsChange, onExport, onExportManuscriptRtf, onImport, onOpenConcept }) => {
     const handleCycleBackground = () => {
         const styles: TileBackgroundStyle[] = ['solid', 'diagonal', 'horizontal'];
         const currentStyle = settings.assemblyTileStyle || 'solid';
@@ -145,8 +144,9 @@ const AssemblyHeader: React.FC<AssemblyHeaderProps> = ({ settings, activePanel, 
         synopsis: 'Synopsis',
         social: 'Social Media',
         chronicle: 'Chronicle',
+        scrapbook: 'Scrapbook',
     };
-    const tabs: AssemblyPanel[] = ['chapters', 'characters', 'chronicle', 'snippets', 'social', 'world', 'plot', 'synopsis'];
+    const tabs: AssemblyPanel[] = ['chapters', 'characters', 'chronicle', 'snippets', 'social', 'world', 'plot', 'synopsis', 'scrapbook'];
     const canAdd = ['characters', 'chapters', 'snippets', 'world'].includes(activePanel);
 
     const getAddItemLabel = () => {
@@ -200,57 +200,51 @@ const AssemblyHeader: React.FC<AssemblyHeaderProps> = ({ settings, activePanel, 
                  >
                     {sansSerifFonts.map(font => <option key={font} value={font} style={{fontFamily: font}}>{font}</option>)}
                  </select>
-                 {showTileControls && (
-                    <div className="flex items-center gap-1">
-                        <button
-                            onClick={handleCycleBackground}
-                            className="p-1.5 rounded-md flex-shrink-0"
-                            style={{ backgroundColor: settings.toolbarButtonBg }}
-                            onMouseEnter={e => e.currentTarget.style.backgroundColor = settings.toolbarButtonHoverBg || ''}
-                            onMouseLeave={e => e.currentTarget.style.backgroundColor = settings.toolbarButtonBg || ''}
-                            title="Cycle tile background style"
-                        >
-                            <TileBackgroundIcon style={{ color: settings.toolbarText }} />
-                        </button>
-                        <button
-                            onClick={handleToggleColorSource}
-                            className="p-1.5 rounded-md flex-shrink-0 transition-all"
-                            style={{ 
-                                backgroundColor: settings.tileColorSource === 'image' ? settings.accentColor : settings.toolbarButtonBg,
-                                boxShadow: settings.tileColorSource === 'image' ? `0 0 10px ${settings.accentColor}40` : 'none'
-                            }}
-                            onMouseEnter={e => {
-                                if (settings.tileColorSource !== 'image') e.currentTarget.style.backgroundColor = settings.toolbarButtonHoverBg || '';
-                            }}
-                            onMouseLeave={e => {
-                                if (settings.tileColorSource !== 'image') e.currentTarget.style.backgroundColor = settings.toolbarButtonBg || '';
-                            }}
-                            title={settings.tileColorSource === 'image' ? "Using Image/Headshot Colors" : "Using Global Palette Colors"}
-                        >
-                            <SparklesIconOutline style={{ color: settings.tileColorSource === 'image' ? '#FFFFFF' : settings.toolbarText }} className="h-5 w-5" />
-                        </button>
-                        <button
-                            onClick={onOpenConcept}
-                            className="p-1.5 rounded-md flex-shrink-0 transition-all border border-dashed border-white/10"
-                            style={{ backgroundColor: settings.toolbarButtonBg }}
-                            onMouseEnter={e => e.currentTarget.style.backgroundColor = settings.toolbarButtonHoverBg || ''}
-                            onMouseLeave={e => e.currentTarget.style.backgroundColor = settings.toolbarButtonBg || ''}
-                            title="View Story Concept & Summary"
-                        >
-                            <ConceptIcon style={{ color: settings.toolbarText }} className="h-5 w-5" />
-                        </button>
-                        <button
-                            onClick={onOpenScrapbook}
-                            className="p-1.5 rounded-md flex-shrink-0 transition-all border border-dashed border-white/10"
-                            style={{ backgroundColor: settings.toolbarButtonBg }}
-                            onMouseEnter={e => e.currentTarget.style.backgroundColor = settings.toolbarButtonHoverBg || ''}
-                            onMouseLeave={e => e.currentTarget.style.backgroundColor = settings.toolbarButtonBg || ''}
-                            title="Open Scrapbook & Loose Concepts"
-                        >
-                            <ScrapbookIcon style={{ color: settings.toolbarText }} className="h-5 w-5" />
-                        </button>
-                    </div>
-                 )}
+                 
+                 <div className="flex items-center gap-1">
+                    {showTileControls && (
+                        <>
+                            <button
+                                onClick={handleCycleBackground}
+                                className="p-1.5 rounded-md flex-shrink-0"
+                                style={{ backgroundColor: settings.toolbarButtonBg }}
+                                onMouseEnter={e => e.currentTarget.style.backgroundColor = settings.toolbarButtonHoverBg || ''}
+                                onMouseLeave={e => e.currentTarget.style.backgroundColor = settings.toolbarButtonBg || ''}
+                                title="Cycle tile background style"
+                            >
+                                <TileBackgroundIcon style={{ color: settings.toolbarText }} />
+                            </button>
+                            <button
+                                onClick={handleToggleColorSource}
+                                className="p-1.5 rounded-md flex-shrink-0 transition-all"
+                                style={{ 
+                                    backgroundColor: settings.tileColorSource === 'image' ? settings.accentColor : settings.toolbarButtonBg,
+                                    boxShadow: settings.tileColorSource === 'image' ? `0 0 10px ${settings.accentColor}40` : 'none'
+                                }}
+                                onMouseEnter={e => {
+                                    if (settings.tileColorSource !== 'image') e.currentTarget.style.backgroundColor = settings.toolbarButtonHoverBg || '';
+                                }}
+                                onMouseLeave={e => {
+                                    if (settings.tileColorSource !== 'image') e.currentTarget.style.backgroundColor = settings.toolbarButtonBg || '';
+                                }}
+                                title={settings.tileColorSource === 'image' ? "Using Image/Headshot Colors" : "Using Global Palette Colors"}
+                            >
+                                <SparklesIconOutline style={{ color: settings.tileColorSource === 'image' ? '#FFFFFF' : settings.toolbarText }} className="h-5 w-5" />
+                            </button>
+                             <button
+                                onClick={onOpenConcept}
+                                className="p-1.5 rounded-md flex-shrink-0 transition-all border border-dashed border-white/10"
+                                style={{ backgroundColor: settings.toolbarButtonBg }}
+                                onMouseEnter={e => e.currentTarget.style.backgroundColor = settings.toolbarButtonHoverBg || ''}
+                                onMouseLeave={e => e.currentTarget.style.backgroundColor = settings.toolbarButtonBg || ''}
+                                title="View Story Concept & Summary"
+                            >
+                                <ConceptIcon style={{ color: settings.toolbarText }} className="h-5 w-5" />
+                            </button>
+                        </>
+                    )}
+                 </div>
+
                  <div className="w-px h-6 bg-gray-600 opacity-30 mx-1 hidden sm:block"></div>
                  <button
                     onClick={onExportManuscriptRtf}
@@ -1402,14 +1396,15 @@ export const Assembly: React.FC<AssemblyProps> = ({ settings, onSettingsChange, 
     return (
         <AssemblyAIProvider settings={settings}>
             <div className="h-full flex flex-col overflow-hidden" style={{ fontFamily: settings.assemblyFontFamily }}>
+            {!assemblyState.isFocusMode && (
                 <AssemblyHeader 
                     settings={settings} activePanel={activePanel} onPanelChange={onPanelChange} onAdd={handleAdd} 
                     onSettingsChange={onSettingsChange} onExport={() => {}} 
                     onExportManuscriptRtf={handleExportManuscriptRtf}
                     onImport={() => dispatch({ type: 'UPDATE_ASSEMBLY_VIEW_STATE', payload: { isImportModalOpen: true } })}
                     onOpenConcept={() => dispatch({ type: 'UPDATE_ASSEMBLY_VIEW_STATE', payload: { isConceptModalOpen: true } })}
-                    onOpenScrapbook={() => dispatch({ type: 'UPDATE_SCRAPBOOK_STATE', payload: { isOpen: true } })}
                 />
+            )}
                 <div className="flex-grow min-h-0">
                     {activePanel === 'chapters' && (
                         <ChaptersPanel 
@@ -1445,6 +1440,7 @@ export const Assembly: React.FC<AssemblyProps> = ({ settings, onSettingsChange, 
                     {activePanel === 'synopsis' && <SynopsisPanel settings={settings} synopsisState={synopsisState} />}
                     {activePanel === 'world' && <WorldPanel settings={settings} />}
                     {activePanel === 'chronicle' && <ChroniclePanel settings={settings} />}
+                    {activePanel === 'scrapbook' && <ScrapbookPanel settings={settings} isPanel />}
                 </div>
 
                 {deleteCharacterTarget && (
@@ -1475,12 +1471,6 @@ export const Assembly: React.FC<AssemblyProps> = ({ settings, onSettingsChange, 
                     <ConceptSummaryModal 
                         settings={settings}
                         onClose={() => dispatch({ type: 'UPDATE_ASSEMBLY_VIEW_STATE', payload: { isConceptModalOpen: false } })}
-                    />
-                )}
-                {scrapbookState.isOpen && (
-                    <ScrapbookModal 
-                        settings={settings}
-                        onClose={() => dispatch({ type: 'UPDATE_SCRAPBOOK_STATE', payload: { isOpen: false } })}
                     />
                 )}
             </div>

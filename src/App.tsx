@@ -19,9 +19,18 @@ import { EULAModal } from './components/common/EULAModal';
 import { ExitModal } from './components/common/ExitModal';
 import { DialogProvider } from './components/common/DialogProvider';
 import { PostVariationsModal } from './components/social/PostVariationsModal';
+import { ScrapbookModal } from './components/assembly/modals/ScrapbookModal';
+import { CrashRecoveryModal } from './components/common/CrashRecoveryModal';
 import { createProjectZip, generateTimestampedName, parseTimestampFromFilename, parseNoveSync, generateInitialChapterRtf } from './utils/manuscriptUtils';
+import { useDebouncedCallback } from 'use-debounce';
 
 type AppMode = 'manuscript' | 'assembly';
+
+interface RecoveryState {
+    activeChapterId: string;
+    content: string;
+    timestamp: number;
+}
 
 const DEFAULT_GALLERY_ITEMS_URLS = [
     { url: 'https://static.vecteezy.com/system/resources/previews/036/215/115/non_2x/ai-generated-abstract-black-leaf-on-dark-background-elegant-design-generated-by-ai-free-photo.jpg', category: 'Backgrounds' as const },
@@ -390,6 +399,9 @@ const App: React.FC = () => {
     const [projectPath, setProjectPath] = useState<string | null>(null);
     const [projectName, setProjectName] = useState<string>('My_Novel');
 
+    const [recoveryState, setRecoveryState] = useState<RecoveryState | null>(null);
+    const [showRecoveryModal, setShowRecoveryModal] = useState(false);
+
     const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
 
     // Global Settings
@@ -474,6 +486,10 @@ const App: React.FC = () => {
         setIsFocusMode(prev => !prev);
     }, []);
 
+    const handleToggleScrapbook = useCallback(() => {
+        dispatch({ type: 'UPDATE_SCRAPBOOK_STATE', payload: { isOpen: !scrapbookState.isOpen } });
+    }, [dispatch, scrapbookState.isOpen]);
+
     const handleToggleFullscreen = useCallback(() => {
         if (!document.fullscreenElement) {
             document.documentElement.requestFullscreen();
@@ -504,6 +520,20 @@ const App: React.FC = () => {
     // --- STARTUP LOGIC ---
     useEffect(() => {
         const initializeApp = async () => {
+            // Check for recovery state first
+            const savedRecovery = localStorage.getItem('novelis_recovery_state');
+            if (savedRecovery) {
+                try {
+                    const parsed = JSON.parse(savedRecovery);
+                    if (parsed && parsed.content && parsed.activeChapterId) {
+                        setRecoveryState(parsed);
+                        setShowRecoveryModal(true);
+                    }
+                } catch (e) {
+                    console.error("Failed to parse recovery state", e);
+                }
+            }
+
             // @ts-ignore
             if (window.electronAPI) {
                 const lastPath = localStorage.getItem('novelis_last_project_path');
@@ -564,6 +594,91 @@ const App: React.FC = () => {
         if (isFirstStateChange.current) return;
         setIsDirty(true);
     }, [novelState, settings]);
+
+    // --- REAL-TIME CRASH RECOVERY CACHING ---
+    const cacheRecoveryState = useDebouncedCallback((chapterId: string, content: string) => {
+        if (!chapterId || !content) return;
+        
+        const state: RecoveryState = {
+            activeChapterId: chapterId,
+            content,
+            timestamp: Date.now()
+        };
+        localStorage.setItem('novelis_recovery_state', JSON.stringify(state));
+    }, 5000);
+
+    useEffect(() => {
+        if (isFirstStateChange.current || mode !== 'manuscript' || !activeChapterId) return;
+        
+        const activeChapter = chapters.find(c => c.id === activeChapterId);
+        if (activeChapter) {
+            cacheRecoveryState(activeChapterId, activeChapter.content);
+        }
+    }, [chapters, activeChapterId, mode, cacheRecoveryState]);
+
+    // Cache on blur
+    useEffect(() => {
+        const handleBlur = () => {
+            if (mode === 'manuscript' && activeChapterId) {
+                const activeChapter = chapters.find(c => c.id === activeChapterId);
+                if (activeChapter) {
+                    const state: RecoveryState = {
+                        activeChapterId,
+                        content: activeChapter.content,
+                        timestamp: Date.now()
+                    };
+                    localStorage.setItem('novelis_recovery_state', JSON.stringify(state));
+                }
+            }
+        };
+        window.addEventListener('blur', handleBlur);
+        return () => window.removeEventListener('blur', handleBlur);
+    }, [mode, activeChapterId, chapters]);
+
+    const handleRestoreRecovery = () => {
+        if (recoveryState) {
+            // Find if the chapter still exists
+            const chapterExists = chapters.find(c => c.id === recoveryState.activeChapterId);
+            if (chapterExists) {
+                dispatch({ 
+                    type: 'UPDATE_CHAPTER', 
+                    payload: { 
+                        id: recoveryState.activeChapterId, 
+                        updates: { content: recoveryState.content } 
+                    } 
+                });
+                setActiveChapterId(recoveryState.activeChapterId);
+            } else {
+                // If chapter doesn't exist (e.g. user switched projects or deleted it), 
+                // we can't easily restore it to a document, so maybe just discard or suggest clipboard
+                (window as any).novelis?.error("The original chapter no longer exists in this project.", "Recovery Error");
+            }
+        }
+        setShowRecoveryModal(false);
+        localStorage.removeItem('novelis_recovery_state');
+        setRecoveryState(null);
+    };
+
+    const handleCopyRecoveryToClipboard = () => {
+        if (recoveryState) {
+            // Strip HTML for clipboard
+            const temp = document.createElement('div');
+            temp.innerHTML = recoveryState.content;
+            const text = temp.innerText;
+            navigator.clipboard.writeText(text);
+            setNotification("Recovered text copied to clipboard.");
+            setTimeout(() => setNotification(null), 3000);
+        }
+        setShowRecoveryModal(false);
+        localStorage.removeItem('novelis_recovery_state');
+        setRecoveryState(null);
+    };
+
+    const handleDiscardRecovery = () => {
+        setShowRecoveryModal(false);
+        localStorage.removeItem('novelis_recovery_state');
+        setRecoveryState(null);
+    };
 
     // --- BULLETPROOF SAVE LOGIC ---
     const analyzeSpellingErrors = useCallback(async () => {
@@ -665,6 +780,9 @@ Return your response as a JSON array of objects, where each object has "word" (t
                         }
                     }
 
+                    // Clear recovery state on successful save
+                    localStorage.removeItem('novelis_recovery_state');
+
                     setIsSavingVisual(true);
                     setTimeout(() => setIsSavingVisual(false), 1500);
                     setIsDirty(false); // Reset dirty bit after successful save
@@ -743,6 +861,9 @@ Return your response as a JSON array of objects, where each object has "word" (t
                             console.warn("Could not save to history subfolder on web:", err);
                         }
                     }
+
+                    // Clear recovery state on successful save
+                    localStorage.removeItem('novelis_recovery_state');
 
                     setIsSavingVisual(true);
                     setTimeout(() => setIsSavingVisual(false), 1500);
@@ -867,6 +988,9 @@ Return your response as a JSON array of objects, where each object has "word" (t
     }, []);
 
     const handleExitWithoutSaving = () => {
+        // Clear recovery state on clean exit
+        localStorage.removeItem('novelis_recovery_state');
+        
         // @ts-ignore
         if (window.electronAPI && window.electronAPI.forceClose) {
             // @ts-ignore
@@ -1135,7 +1259,7 @@ Return your response as a JSON array of 2 strings, where each string is one full
     const navClasses = `
         absolute top-12 left-1/2 -translate-x-1/2 z-[110] print:hidden
         transition-transform duration-500 ease-in-out
-        ${((mode === 'manuscript' && isFocusMode) || !isNavVisible) ? '-translate-y-32' : 'translate-y-0'}
+        ${((mode === 'manuscript' && isFocusMode) || (mode === 'assembly' && assemblyState.isFocusMode) || !isNavVisible) ? '-translate-y-32' : 'translate-y-0'}
     `;
 
     const headerButtonClasses = "px-4 py-2 rounded-md text-sm font-medium transition-colors focus:outline-none";
@@ -1247,6 +1371,8 @@ Return your response as a JSON array of 2 strings, where each string is one full
                                 onSaveToFolder={handleSaveToFolder} 
                                 onOpenProjectFolder={handleOpenProjectFolder}
                                 onRewriteParagraphs={onRewriteParagraphs}
+                                onToggleScrapbook={handleToggleScrapbook}
+                                isScrapbookOpen={scrapbookState.isOpen}
                             />
                         </div>
                         <div className={`h-full w-full ${mode === 'assembly' ? 'block' : 'hidden'}`}>
@@ -1307,6 +1433,12 @@ Return your response as a JSON array of 2 strings, where each string is one full
                             settings={settings}
                         />
                     )}
+                    {scrapbookState.isOpen && (
+                        <ScrapbookModal 
+                            settings={settings}
+                            onClose={() => dispatch({ type: 'UPDATE_SCRAPBOOK_STATE', payload: { isOpen: false } })}
+                        />
+                    )}
                     <CommandPalette 
                         isOpen={isCommandPaletteOpen} 
                         onClose={() => setIsCommandPaletteOpen(false)}
@@ -1314,6 +1446,15 @@ Return your response as a JSON array of 2 strings, where each string is one full
                         onNavigate={handleNavigation}
                         onToggleFocus={handleToggleFocusMode}
                         onToggleFullscreen={handleToggleFullscreen}
+                    />
+
+                    <CrashRecoveryModal 
+                        isOpen={showRecoveryModal}
+                        timestamp={recoveryState?.timestamp || 0}
+                        previewText={recoveryState?.content || ''}
+                        onRestore={handleRestoreRecovery}
+                        onCopyToClipboard={handleCopyRecoveryToClipboard}
+                        onDiscard={handleDiscardRecovery}
                     />
                 </div>
             </div>

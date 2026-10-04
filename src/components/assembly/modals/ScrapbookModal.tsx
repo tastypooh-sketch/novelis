@@ -5,9 +5,10 @@ import type { EditorSettings, IScrapbookEntry } from '../../../types';
 import { PlusIcon, TrashIconOutline, CameraIcon, XIcon, CheckCircleIcon, DocumentDuplicateIcon, PinIcon, ScrapbookIcon } from '../../common/Icons';
 import { getContrastColor } from '../../../utils/colorUtils';
 
-interface ScrapbookModalProps {
+interface ScrapbookProps {
     settings: EditorSettings;
-    onClose: () => void;
+    onClose?: () => void;
+    isPanel?: boolean;
 }
 
 const STICKY_COLORS = [
@@ -20,7 +21,7 @@ const STICKY_COLORS = [
     '#fecaca', // Red
 ];
 
-export const ScrapbookModal: React.FC<ScrapbookModalProps> = ({ settings, onClose }) => {
+export const ScrapbookPanel: React.FC<ScrapbookProps> = ({ settings, onClose, isPanel = false }) => {
     const { scrapbookState } = useNovelState();
     const dispatch = useNovelDispatch();
     const [filter, setFilter] = useState<'all' | 'text' | 'image'>('all');
@@ -68,6 +69,221 @@ export const ScrapbookModal: React.FC<ScrapbookModalProps> = ({ settings, onClos
         return b.timestamp - a.timestamp;
     });
 
+    const content = (
+        <div 
+            className={`${isPanel ? 'h-full w-full' : 'w-full max-w-6xl h-[90vh] rounded-2xl shadow-2xl border'} overflow-hidden flex flex-col relative`}
+            style={{ 
+                backgroundColor: settings.backgroundColor, 
+                color: settings.textColor, 
+                border: isPanel ? 'none' : `1px solid ${settings.accentColor}40` 
+            }}
+            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+        >
+            {/* Header */}
+            <div className={`px-6 py-4 flex justify-between items-center border-b border-white/5 bg-black/10 ${isPanel ? 'pt-6' : ''}`}>
+                <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg" style={{ color: settings.accentColor, backgroundColor: `${settings.accentColor}10` }}>
+                        <ScrapbookIcon className="w-6 h-6" />
+                    </div>
+                    <div>
+                        <h2 className="text-xl font-bold tracking-tight">The Scrapbook</h2>
+                        <p className="text-xs opacity-50 font-medium uppercase tracking-wider">Loose Concepts, Research & Inspiration</p>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-4">
+                    <div className="flex bg-black/20 p-1 rounded-lg">
+                        <button 
+                            onClick={() => setFilter('all')}
+                            className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all uppercase tracking-widest ${filter === 'all' ? 'opacity-100 shadow-sm' : 'opacity-40 hover:opacity-60'}`}
+                            style={{ 
+                                backgroundColor: filter === 'all' ? settings.toolbarButtonBg : 'transparent',
+                                color: settings.textColor
+                            }}
+                        >
+                            All
+                        </button>
+                        <button 
+                            onClick={() => setFilter('text')}
+                            className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all uppercase tracking-widest ${filter === 'text' ? 'opacity-100 shadow-sm' : 'opacity-40 hover:opacity-60'}`}
+                            style={{ 
+                                backgroundColor: filter === 'text' ? settings.toolbarButtonBg : 'transparent',
+                                color: settings.textColor
+                            }}
+                        >
+                            Notes
+                        </button>
+                        <button 
+                            onClick={() => setFilter('image')}
+                            className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all uppercase tracking-widest ${filter === 'image' ? 'opacity-100 shadow-sm' : 'opacity-40 hover:opacity-60'}`}
+                            style={{ 
+                                backgroundColor: filter === 'image' ? settings.toolbarButtonBg : 'transparent',
+                                color: settings.textColor
+                            }}
+                        >
+                            Images
+                        </button>
+                    </div>
+
+                    <div className="h-6 w-px bg-white/10 mx-2"></div>
+
+                    <div className="flex gap-2">
+                        <button 
+                            onClick={() => { setNewEntryType('text'); setIsAdding(true); }}
+                            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all hover:scale-105 active:scale-95"
+                            style={{ backgroundColor: settings.accentColor, color: getContrastColor(settings.accentColor || '#000') }}
+                        >
+                            <PlusIcon className="w-4 h-4" />
+                            Add Note
+                        </button>
+                        <button 
+                            onClick={() => { setNewEntryType('image'); setIsAdding(true); }}
+                            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold border border-white/10 transition-all hover:bg-white/5"
+                            style={{ color: settings.textColor }}
+                        >
+                            <CameraIcon className="w-4 h-4" />
+                            Add Image
+                        </button>
+                    </div>
+
+                    {onClose && (
+                        <button 
+                            onClick={onClose}
+                            className="ml-4 p-2 rounded-full hover:bg-white/5 transition-colors opacity-50 hover:opacity-100"
+                        >
+                            <XIcon className="w-6 h-6" />
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {/* Content Area - Freeform Grid */}
+            <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                {sortedEntries.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center opacity-20 text-center">
+                        <DocumentDuplicateIcon className="w-24 h-24 mb-6" />
+                        <h3 className="text-2xl font-bold mb-2">Your scrapbook is empty</h3>
+                        <p className="text-base max-w-sm">Capture transient thoughts, research snippets, or visual inspiration without worry about where they fit yet.</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8 pb-12">
+                        <AnimatePresence>
+                            {sortedEntries.map((entry) => (
+                                <ScrapbookItem 
+                                    key={entry.id} 
+                                    entry={entry} 
+                                    settings={settings}
+                                    onDelete={() => handleDeleteEntry(entry.id)}
+                                    onTogglePin={() => handleTogglePin(entry.id, !!entry.isPinned)}
+                                    onUpdate={(updates) => dispatch({ type: 'UPDATE_SCRAPBOOK_ENTRY', payload: { id: entry.id, updates } })}
+                                />
+                            ))}
+                        </AnimatePresence>
+                    </div>
+                )}
+            </div>
+
+            {/* Footer / Status */}
+            <div className="px-6 py-3 border-t border-white/5 bg-black/5 flex justify-between items-center text-[10px] uppercase font-bold tracking-widest opacity-40">
+                <span>{entries.length} items collected</span>
+                <span>Drag and drop support coming soon</span>
+            </div>
+
+            {/* Add Entry Modal Overlay */}
+            <AnimatePresence>
+                {isAdding && (
+                    <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="absolute inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+                    >
+                        <motion.div 
+                            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                            className="max-w-md w-full rounded-2xl p-6 shadow-2xl border overflow-hidden" 
+                            style={{ backgroundColor: settings.toolbarBg, borderColor: settings.toolbarInputBorderColor, color: settings.textColor }}
+                        >
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="text-xl font-bold">Add {newEntryType === 'text' ? 'Note' : 'Image'}</h3>
+                                <button onClick={() => setIsAdding(false)} className="opacity-40 hover:opacity-100">
+                                    <XIcon className="w-6 h-6" />
+                                </button>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-xs font-bold uppercase opacity-40 mb-1.5">Title (Optional)</label>
+                                    <input 
+                                        type="text"
+                                        value={newEntryTitle}
+                                        onChange={(e) => setNewEntryTitle(e.target.value)}
+                                        placeholder={newEntryType === 'text' ? 'Quick thought...' : 'Image description...'}
+                                        className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500/50"
+                                        style={{ color: settings.textColor }}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold uppercase opacity-40 mb-1.5">
+                                        {newEntryType === 'text' ? 'Content' : 'Image URL'}
+                                    </label>
+                                    <textarea 
+                                        value={newEntryContent}
+                                        onChange={(e) => setNewEntryContent(e.target.value)}
+                                        placeholder={newEntryType === 'text' ? 'Type your ideas here...' : 'https://example.com/image.jpg'}
+                                        className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500/50 min-h-[120px]"
+                                        style={{ color: settings.textColor }}
+                                    />
+                                    {newEntryType === 'image' && newEntryContent && (
+                                        <div className="mt-2 rounded-lg overflow-hidden border border-white/10 aspect-video bg-black/40">
+                                            <img src={newEntryContent} alt="Preview" className="w-full h-full object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold uppercase opacity-40 mb-2">Accent Color</label>
+                                    <div className="flex gap-2">
+                                        {STICKY_COLORS.map(color => (
+                                            <button 
+                                                key={color}
+                                                onClick={() => setNewEntryColor(color)}
+                                                className={`w-8 h-8 rounded-full border-2 transition-transform active:scale-90 ${newEntryColor === color ? 'border-white scale-110' : 'border-transparent'}`}
+                                                style={{ backgroundColor: color }}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="mt-8 flex justify-end gap-3">
+                                <button 
+                                    onClick={() => setIsAdding(false)}
+                                    className="px-6 py-2 rounded-xl opacity-40 hover:opacity-100 text-sm font-medium"
+                                >
+                                    Cancel
+                                </button>
+                                <button 
+                                    onClick={handleAddEntry}
+                                    disabled={!newEntryContent.trim() && newEntryType === 'text'}
+                                    className="px-8 py-2 rounded-xl text-sm font-bold transition-all hover:scale-105 active:scale-95 disabled:opacity-30"
+                                    style={{ backgroundColor: settings.accentColor, color: getContrastColor(settings.accentColor || '#000') }}
+                                >
+                                    <CheckCircleIcon className="w-4 h-4 mr-2" />
+                                    Save Entry
+                                </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+
+    if (isPanel) return content;
+
     return (
         <AnimatePresence>
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/70 backdrop-blur-md" onClick={onClose}>
@@ -75,213 +291,16 @@ export const ScrapbookModal: React.FC<ScrapbookModalProps> = ({ settings, onClos
                     initial={{ opacity: 0, scale: 0.95, y: 20 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                    className="w-full max-w-6xl h-[90vh] overflow-hidden rounded-2xl shadow-2xl flex flex-col relative"
-                    style={{ backgroundColor: settings.backgroundColor, color: settings.textColor, border: `1px solid ${settings.accentColor}40` }}
-                    onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                    className="w-full flex justify-center"
                 >
-                    {/* Header */}
-                    <div className="px-6 py-4 flex justify-between items-center border-b border-white/5 bg-black/10">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-lg" style={{ color: settings.accentColor, backgroundColor: `${settings.accentColor}10` }}>
-                                <ScrapbookIcon className="w-6 h-6" />
-                            </div>
-                            <div>
-                                <h2 className="text-xl font-bold tracking-tight">The Scrapbook</h2>
-                                <p className="text-xs opacity-50 font-medium uppercase tracking-wider">Loose Concepts, Research & Inspiration</p>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-4">
-                            <div className="flex bg-black/20 p-1 rounded-lg">
-                                <button 
-                                    onClick={() => setFilter('all')}
-                                    className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all uppercase tracking-widest ${filter === 'all' ? 'opacity-100 shadow-sm' : 'opacity-40 hover:opacity-60'}`}
-                                    style={{ 
-                                        backgroundColor: filter === 'all' ? settings.toolbarButtonBg : 'transparent',
-                                        color: settings.textColor
-                                    }}
-                                >
-                                    All
-                                </button>
-                                <button 
-                                    onClick={() => setFilter('text')}
-                                    className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all uppercase tracking-widest ${filter === 'text' ? 'opacity-100 shadow-sm' : 'opacity-40 hover:opacity-60'}`}
-                                    style={{ 
-                                        backgroundColor: filter === 'text' ? settings.toolbarButtonBg : 'transparent',
-                                        color: settings.textColor
-                                    }}
-                                >
-                                    Notes
-                                </button>
-                                <button 
-                                    onClick={() => setFilter('image')}
-                                    className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all uppercase tracking-widest ${filter === 'image' ? 'opacity-100 shadow-sm' : 'opacity-40 hover:opacity-60'}`}
-                                    style={{ 
-                                        backgroundColor: filter === 'image' ? settings.toolbarButtonBg : 'transparent',
-                                        color: settings.textColor
-                                    }}
-                                >
-                                    Images
-                                </button>
-                            </div>
-
-                            <div className="h-6 w-px bg-white/10 mx-2"></div>
-
-                            <div className="flex gap-2">
-                                <button 
-                                    onClick={() => { setNewEntryType('text'); setIsAdding(true); }}
-                                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all hover:scale-105 active:scale-95"
-                                    style={{ backgroundColor: settings.accentColor, color: getContrastColor(settings.accentColor || '#000') }}
-                                >
-                                    <PlusIcon className="w-4 h-4" />
-                                    Add Note
-                                </button>
-                                <button 
-                                    onClick={() => { setNewEntryType('image'); setIsAdding(true); }}
-                                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold border border-white/10 transition-all hover:bg-white/5"
-                                    style={{ color: settings.textColor }}
-                                >
-                                    <CameraIcon className="w-4 h-4" />
-                                    Add Image
-                                </button>
-                            </div>
-
-                            <button 
-                                onClick={onClose}
-                                className="ml-4 p-2 rounded-full hover:bg-white/5 transition-colors opacity-50 hover:opacity-100"
-                            >
-                                <XIcon className="w-6 h-6" />
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Content Area - Freeform Grid */}
-                    <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
-                        {sortedEntries.length === 0 ? (
-                            <div className="h-full flex flex-col items-center justify-center opacity-20 text-center">
-                                <DocumentDuplicateIcon className="w-24 h-24 mb-6" />
-                                <h3 className="text-2xl font-bold mb-2">Your scrapbook is empty</h3>
-                                <p className="text-base max-w-sm">Capture transient thoughts, research snippets, or visual inspiration without worry about where they fit yet.</p>
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8 pb-12">
-                                <AnimatePresence>
-                                    {sortedEntries.map((entry) => (
-                                        <ScrapbookItem 
-                                            key={entry.id} 
-                                            entry={entry} 
-                                            settings={settings}
-                                            onDelete={() => handleDeleteEntry(entry.id)}
-                                            onTogglePin={() => handleTogglePin(entry.id, !!entry.isPinned)}
-                                            onUpdate={(updates) => dispatch({ type: 'UPDATE_SCRAPBOOK_ENTRY', payload: { id: entry.id, updates } })}
-                                        />
-                                    ))}
-                                </AnimatePresence>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Footer / Status */}
-                    <div className="px-6 py-3 border-t border-white/5 bg-black/5 flex justify-between items-center text-[10px] uppercase font-bold tracking-widest opacity-40">
-                        <span>{entries.length} items collected</span>
-                        <span>Drag and drop support coming soon</span>
-                    </div>
-
-                    {/* Add Entry Modal Overlay */}
-                    <AnimatePresence>
-                        {isAdding && (
-                            <motion.div 
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                className="absolute inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-                            >
-                                <motion.div 
-                                    initial={{ scale: 0.9, opacity: 0, y: 20 }}
-                                    animate={{ scale: 1, opacity: 1, y: 0 }}
-                                    exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                                    className="max-w-md w-full rounded-2xl p-6 shadow-2xl border overflow-hidden" 
-                                    style={{ backgroundColor: settings.toolbarBg, borderColor: settings.toolbarInputBorderColor, color: settings.textColor }}
-                                >
-                                    <div className="flex justify-between items-center mb-6">
-                                        <h3 className="text-xl font-bold">Add {newEntryType === 'text' ? 'Note' : 'Image'}</h3>
-                                        <button onClick={() => setIsAdding(false)} className="opacity-40 hover:opacity-100">
-                                            <XIcon className="w-6 h-6" />
-                                        </button>
-                                    </div>
-
-                                    <div className="space-y-4">
-                                        <div>
-                                            <label className="block text-xs font-bold uppercase opacity-40 mb-1.5">Title (Optional)</label>
-                                            <input 
-                                                type="text"
-                                                value={newEntryTitle}
-                                                onChange={(e) => setNewEntryTitle(e.target.value)}
-                                                placeholder={newEntryType === 'text' ? 'Quick thought...' : 'Image description...'}
-                                                className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500/50"
-                                                style={{ color: settings.textColor }}
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-xs font-bold uppercase opacity-40 mb-1.5">
-                                                {newEntryType === 'text' ? 'Content' : 'Image URL'}
-                                            </label>
-                                            <textarea 
-                                                value={newEntryContent}
-                                                onChange={(e) => setNewEntryContent(e.target.value)}
-                                                placeholder={newEntryType === 'text' ? 'Type your ideas here...' : 'https://example.com/image.jpg'}
-                                                className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500/50 min-h-[120px]"
-                                                style={{ color: settings.textColor }}
-                                            />
-                                            {newEntryType === 'image' && newEntryContent && (
-                                                <div className="mt-2 rounded-lg overflow-hidden border border-white/10 aspect-video bg-black/40">
-                                                    <img src={newEntryContent} alt="Preview" className="w-full h-full object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-xs font-bold uppercase opacity-40 mb-2">Accent Color</label>
-                                            <div className="flex gap-2">
-                                                {STICKY_COLORS.map(color => (
-                                                    <button 
-                                                        key={color}
-                                                        onClick={() => setNewEntryColor(color)}
-                                                        className={`w-8 h-8 rounded-full border-2 transition-transform active:scale-90 ${newEntryColor === color ? 'border-white scale-110' : 'border-transparent'}`}
-                                                        style={{ backgroundColor: color }}
-                                                    />
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="mt-8 flex justify-end gap-3">
-                                        <button 
-                                            onClick={() => setIsAdding(false)}
-                                            className="px-6 py-2 rounded-xl opacity-40 hover:opacity-100 text-sm font-medium"
-                                        >
-                                            Cancel
-                                        </button>
-                                        <button 
-                                            onClick={handleAddEntry}
-                                            disabled={!newEntryContent.trim() && newEntryType === 'text'}
-                                            className="px-8 py-2 rounded-xl text-sm font-bold transition-all hover:scale-105 active:scale-95 disabled:opacity-30"
-                                            style={{ backgroundColor: settings.accentColor, color: getContrastColor(settings.accentColor || '#000') }}
-                                        >
-                                            <CheckCircleIcon className="w-4 h-4 mr-2" />
-                                            Save Entry
-                                        </button>
-                                    </div>
-                                </motion.div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
+                    {content}
                 </motion.div>
             </div>
         </AnimatePresence>
     );
 };
+
+export const ScrapbookModal = ScrapbookPanel;
 
 const ScrapbookItem: React.FC<{ entry: IScrapbookEntry, settings: EditorSettings, onDelete: () => void, onTogglePin: () => void, onUpdate: (updates: Partial<IScrapbookEntry>) => void }> = ({ entry, settings, onDelete, onTogglePin, onUpdate }) => {
     const isImage = entry.type === 'image';

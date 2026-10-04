@@ -443,6 +443,7 @@ export interface AssemblyViewState {
     };
     chapterZoomLevel: number; // 0 (normal), 1, 2, 3 (max zoom out)
     characterZoomLevel: number; // 0 (normal), 1, 2, 3 (max zoom out)
+    isFocusMode?: boolean;
     isContinuousView?: boolean;
     isSpreadsheetView?: boolean;
     isSnippetSpreadsheetView?: boolean;

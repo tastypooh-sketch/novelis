@@ -5,7 +5,7 @@ import type { EditorSettings, ICharacter, IChapter, ISnippet, TileBackgroundStyl
 import { useNovelDispatch, useNovelState } from '../../NovelContext';
 import { useAssemblyAI } from './AssemblyAIContext';
 import MarkdownRenderer from '../common/MarkdownRenderer';
-import { ChevronDownIcon, BookOpenIcon, CameraIcon, LockClosedIconOutline, LockOpenIconOutline, RevertIcon, SparklesIconOutline, TrashIconOutline, StarIcon, XIcon, LinkIcon, ViewGridIcon, ChevronUpIcon, BrushIcon, SpinnerIcon, CheckCircleIcon, PaperAirplaneIcon, UserCircleIcon, FocusIcon, SaveIcon, DocumentTextIcon, ImportIcon, ListBulletIcon, ArchiveIcon, TableIcon, DownloadIcon } from '../common/Icons';
+import { ChevronDownIcon, BookOpenIcon, CameraIcon, LockClosedIconOutline, LockOpenIconOutline, RevertIcon, SparklesIconOutline, TrashIconOutline, StarIcon, XIcon, LinkIcon, ViewGridIcon, ChevronUpIcon, BrushIcon, SpinnerIcon, CheckCircleIcon, PaperAirplaneIcon, UserCircleIcon, FocusIcon, UnfocusIcon, SaveIcon, DocumentTextIcon, ImportIcon, ListBulletIcon, ArchiveIcon, TableIcon, DownloadIcon } from '../common/Icons';
 import { isColorLight, shadeColor, getImageColor, harmonizeColor, getContrastColor, getTileColorsFromImage } from '../../utils/colorUtils';
 import { generateBriefingHtml, generateSpreadsheetCSV } from '../../utils/manuscriptUtils';
 import { exportChaptersToMarkdown, importChaptersFromMarkdown } from '../../utils/markdownUtils';
@@ -15,6 +15,7 @@ import { AIError } from '../common/AIError';
 import { CharactersPanel } from './characters';
 import { LockedChestTab, useLockedChestSelection } from '../common/LockedChest';
 import { ChapterSpreadsheet } from './ChapterSpreadsheet';
+import { CollageExportModal, CollageExportConfig } from './modals/CollageExportModal';
 
 // --- UTILS ---
 const useAutosizeTextArea = (
@@ -146,7 +147,7 @@ const EditableActHeader: React.FC<{
 
 // --- COMPONENTS ---
 
-const PacingHeatmap: React.FC<{ analysis: ChapterPacingInfo[]; settings: EditorSettings; }> = ({ analysis, settings }) => {
+const PacingHeatmap: React.FC<{ analysis: ChapterPacingInfo[]; settings: EditorSettings; onDelete: () => void; }> = ({ analysis, settings, onDelete }) => {
     const [tooltip, setTooltip] = useState<{ content: string; x: number; y: number } | null>(null);
     const scoreToColor = (score: number) => {
         if (score < 0) {
@@ -158,12 +159,21 @@ const PacingHeatmap: React.FC<{ analysis: ChapterPacingInfo[]; settings: EditorS
         }
     };
     return (
-        <div className="relative mb-8">
-            <h4 className="text-xl font-bold flex items-center gap-3 mb-4 select-none" style={{ color: settings.textColor }}>
-                <SparklesIconOutline className="h-6 w-6" style={{ color: settings.accentColor }} />
-                Pacing Heatmap
-            </h4>
-            <div className="flex w-full h-8 rounded-md overflow-hidden bg-black/20" onMouseLeave={() => setTooltip(null)}>
+        <div className="relative mb-8 group/heatmap">
+            <div className="flex justify-between items-center mb-4">
+                <h4 className="text-xl font-bold flex items-center gap-3 select-none" style={{ color: settings.textColor }}>
+                    <SparklesIconOutline className="h-6 w-6" style={{ color: settings.accentColor }} />
+                    Pacing Heatmap
+                </h4>
+                <button 
+                    onClick={onDelete}
+                    className="btn-nuanced-danger opacity-0 group-hover/heatmap:opacity-100 transition-opacity p-2"
+                    title="Remove Pacing Heatmap"
+                >
+                    <TrashIconOutline className="h-5 w-5" />
+                </button>
+            </div>
+            <div className="flex w-full h-8 rounded-md overflow-hidden bg-black/20 shadow-inner" onMouseLeave={() => setTooltip(null)}>
                 {analysis.map(info => (
                     <div
                         key={info.chapterId}
@@ -1174,8 +1184,10 @@ export const ChaptersPanel: React.FC<ChaptersPanelProps> = ({
     const { renderContextMenu, renderTaggingModal } = useLockedChestSelection('chapters', settings);
     const [stagedChapters, setStagedChapters] = useState<IChapter[]>(chapters);
     const [isDirty, setIsDirty] = useState(false);
+    const [isExportModalOpen, setIsExportModalOpen] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
-    const [hideHeaders, setHideHeaders] = useState(false);
+    const { assemblyState, actNames } = useNovelState();
+    const { isFocusMode = false } = assemblyState;
     
     const [dragState, setDragState] = useState<{draggedIds: string[] | null, overId: string | null}>({draggedIds: null, overId: null});
     const [overAct, setOverAct] = useState<number | null>(null);
@@ -1190,6 +1202,16 @@ export const ChaptersPanel: React.FC<ChaptersPanelProps> = ({
             setStagedChapters(chapters);
         }
     }, [chapters, isDirty]);
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && isFocusMode) {
+                dispatch({ type: 'UPDATE_ASSEMBLY_VIEW_STATE', payload: { isFocusMode: false } });
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isFocusMode, dispatch]);
 
     const handleCommitChanges = useCallback(async (forcedChapters?: IChapter[]) => {
         const chaptersToCommit = forcedChapters || stagedChapters;
@@ -1307,7 +1329,6 @@ export const ChaptersPanel: React.FC<ChaptersPanelProps> = ({
         setOverAct(null);
     };
 
-    const { actNames } = useNovelState();
     const acts = useMemo(() => {
         const map: Record<number, IChapter[]> = { 0: [] };
         const nums = Object.keys(actNames || {}).map(Number).sort((a, b) => a - b);
@@ -1334,7 +1355,7 @@ export const ChaptersPanel: React.FC<ChaptersPanelProps> = ({
         dispatch({ type: 'UPDATE_ACT_NAME', payload: { actNum: nextActNum, name: `Act ${roman(nextActNum)}` } });
     };
 
-    const handleExportStoryboardCollage = async () => {
+    const handleExportStoryboardCollage = async (config: CollageExportConfig) => {
         const chaptersWithPhotos = stagedChapters.filter(ch => !!ch.photo);
         if (chaptersWithPhotos.length === 0) {
             dialog.alert("No chapters have scene images to include in a storyboard collage.", "No Images Found");
@@ -1344,7 +1365,7 @@ export const ChaptersPanel: React.FC<ChaptersPanelProps> = ({
         setIsSyncing(true);
         try {
             // Load all images
-            const images = await Promise.all(chaptersWithPhotos.map(ch => {
+            const loadedImages = await Promise.all(chaptersWithPhotos.map(ch => {
                 return new Promise<{ img: HTMLImageElement; chapter: IChapter }>((resolve, reject) => {
                     const img = new Image();
                     img.crossOrigin = "anonymous";
@@ -1354,137 +1375,127 @@ export const ChaptersPanel: React.FC<ChaptersPanelProps> = ({
                 });
             }));
 
-            // Grid calculation
-            const cols = Math.ceil(Math.sqrt(images.length));
-            const rows = Math.ceil(images.length / cols);
-            const gutter = 40;
-            const titleHeight = 120;
-            const labelHeight = 60;
+            // Pagination logic
+            let itemsPerPage = loadedImages.length;
+            if (config.mode === 'fixed-grid') {
+                itemsPerPage = config.fixedGridCount;
+            } else if (config.mode === 'fixed-file') {
+                itemsPerPage = Math.ceil(loadedImages.length / config.fixedFileCount);
+            } else {
+                // Auto mode: default to max 12 per page for legibility
+                itemsPerPage = 12;
+            }
+
+            const pageCount = Math.ceil(loadedImages.length / itemsPerPage);
             
-            // Fixed tile size for high quality promotional export
-            const tileWidth = 800;
-            const tileHeight = 450; // 16:9
-
-            const canvas = document.createElement('canvas');
-            canvas.width = (cols * tileWidth) + ((cols + 1) * gutter);
-            canvas.height = (rows * (tileHeight + labelHeight)) + ((rows + 1) * gutter) + titleHeight;
-
-            const ctx = canvas.getContext('2d');
-            if (!ctx) throw new Error("Canvas context failed");
-
-            // Background
-            ctx.fillStyle = settings.backgroundColor || '#111827';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // App Title
-            ctx.fillStyle = settings.accentColor || '#2563eb';
-            ctx.font = `bold 60px serif`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText("NOVELIS STORYBOARD", canvas.width / 2, 70);
-            
-            ctx.fillStyle = (settings.textColor || '#FFFFFF') + '80';
-            ctx.font = `italic 24px sans-serif`;
-            ctx.fillText("Visual Narrative Assembly", canvas.width / 2, 115);
-
-            // Draw Tiles
-            images.forEach((data, i) => {
-                const col = i % cols;
-                const row = Math.floor(i / cols);
-
-                const x = gutter + (col * (tileWidth + gutter));
-                const y = titleHeight + gutter + (row * (tileHeight + labelHeight + gutter));
-
-                // Shadow
-                ctx.shadowColor = 'rgba(0,0,0,0.5)';
-                ctx.shadowBlur = 30;
-                ctx.shadowOffsetX = 0;
-                ctx.shadowOffsetY = 15;
+            for (let p = 0; p < pageCount; p++) {
+                const pageImages = loadedImages.slice(p * itemsPerPage, (p + 1) * itemsPerPage);
                 
-                // Card Background
-                ctx.fillStyle = settings.toolbarBg || '#1f2937';
+                // Grid calculation for this page
+                const cols = Math.ceil(Math.sqrt(pageImages.length));
+                const rows = Math.ceil(pageImages.length / cols);
+                const gutter = 40;
+                const titleHeight = 150;
+                const labelHeight = 70;
                 
-                const radius = 12;
-                ctx.beginPath();
-                ctx.moveTo(x + radius, y);
-                ctx.lineTo(x + tileWidth - radius, y);
-                ctx.quadraticCurveTo(x + tileWidth, y, x + tileWidth, y + radius);
-                ctx.lineTo(x + tileWidth, y + tileHeight + labelHeight - radius);
-                ctx.quadraticCurveTo(x + tileWidth, y + tileHeight + labelHeight, x + tileWidth - radius, y + tileHeight + labelHeight);
-                ctx.lineTo(x + radius, y + tileHeight + labelHeight);
-                ctx.quadraticCurveTo(x, y + tileHeight + labelHeight, x, y + tileHeight + labelHeight - radius);
-                ctx.lineTo(x, y + radius);
-                ctx.quadraticCurveTo(x, y, x + radius, y);
-                ctx.closePath();
-                ctx.fill();
-                
-                ctx.shadowBlur = 0;
-                ctx.shadowOffsetY = 0;
+                // 1:1 Square tile size
+                const tileWidth = 800;
+                const tileHeight = 800;
 
-                // Image Aspect Fill
-                ctx.save();
-                ctx.beginPath();
-                ctx.moveTo(x + radius, y);
-                ctx.lineTo(x + tileWidth - radius, y);
-                ctx.quadraticCurveTo(x + tileWidth, y, x + tileWidth, y + radius);
-                ctx.lineTo(x + tileWidth, y + tileHeight);
-                ctx.lineTo(x, y + tileHeight);
-                ctx.lineTo(x, y + radius);
-                ctx.quadraticCurveTo(x, y, x + radius, y);
-                ctx.closePath();
-                ctx.clip();
-                
-                const imgAspect = data.img.width / data.img.height;
-                const tileAspect = tileWidth / tileHeight;
-                
-                let sw, sh, sx, sy;
-                if (imgAspect > tileAspect) {
-                    sh = data.img.height;
-                    sw = sh * tileAspect;
-                    sx = (data.img.width - sw) / 2;
-                    sy = 0;
-                } else {
-                    sw = data.img.width;
-                    sh = sw / tileAspect;
-                    sx = 0;
-                    sy = (data.img.height - sh) / 2;
-                }
+                const canvas = document.createElement('canvas');
+                canvas.width = (cols * tileWidth) + ((cols + 1) * gutter);
+                canvas.height = (rows * (tileHeight + labelHeight)) + ((rows + 1) * gutter) + titleHeight;
 
-                ctx.drawImage(data.img, sx, sy, sw, sh, x, y, tileWidth, tileHeight);
-                ctx.restore();
+                const ctx = canvas.getContext('2d');
+                if (!ctx) throw new Error("Canvas context failed");
 
-                // Label
-                ctx.fillStyle = settings.textColor || '#FFFFFF';
-                ctx.font = `bold 28px sans-serif`;
-                ctx.textAlign = 'left';
-                ctx.fillText(`CH ${data.chapter.chapterNumber}`, x + 25, y + tileHeight + 25);
-                
-                ctx.fillStyle = (settings.textColor || '#FFFFFF') + 'AA';
-                ctx.font = `24px sans-serif`;
-                ctx.fillText(data.chapter.title.toUpperCase(), x + 25, y + tileHeight + 55);
-                
-                // Border
-                ctx.strokeStyle = `${settings.accentColor}30`;
-                ctx.lineWidth = 4;
-                ctx.beginPath();
-                ctx.moveTo(x + radius, y);
-                ctx.lineTo(x + tileWidth - radius, y);
-                ctx.quadraticCurveTo(x + tileWidth, y, x + tileWidth, y + radius);
-                ctx.lineTo(x + tileWidth, y + tileHeight + labelHeight - radius);
-                ctx.quadraticCurveTo(x + tileWidth, y + tileHeight + labelHeight, x + tileWidth - radius, y + tileHeight + labelHeight);
-                ctx.lineTo(x + radius, y + tileHeight + labelHeight);
-                ctx.quadraticCurveTo(x, y + tileHeight + labelHeight, x, y + tileHeight + labelHeight - radius);
-                ctx.lineTo(x, y + radius);
-                ctx.quadraticCurveTo(x, y, x + radius, y);
-                ctx.closePath();
-                ctx.stroke();
-            });
+                // Background
+                ctx.fillStyle = settings.backgroundColor || '#111827';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            const dataUrl = canvas.toDataURL("image/png");
-            const link = document.createElement('a');
-            link.href = dataUrl;
-            link.download = `novelis-storyboard-${new Date().getTime()}.png`;
-            link.click();
+                // Project Title Header
+                const projectTitle = settings.bookTitle || "NOVELIS STORYBOARD";
+                ctx.fillStyle = settings.accentColor || '#2563eb';
+                ctx.font = `bold 70px serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(projectTitle.toUpperCase(), canvas.width / 2, 70);
+                
+                ctx.fillStyle = (settings.textColor || '#FFFFFF') + '80';
+                ctx.font = `italic 30px sans-serif`;
+                ctx.fillText(`Storyboard Collage - Page ${p + 1} of ${pageCount}`, canvas.width / 2, 125);
+
+                // Draw Tiles
+                pageImages.forEach((data, i) => {
+                    const col = i % cols;
+                    const row = Math.floor(i / cols);
+
+                    const x = gutter + (col * (tileWidth + gutter));
+                    const y = titleHeight + gutter + (row * (tileHeight + labelHeight + gutter));
+
+                    // Shadow
+                    ctx.shadowColor = 'rgba(0,0,0,0.6)';
+                    ctx.shadowBlur = 40;
+                    ctx.shadowOffsetX = 0;
+                    ctx.shadowOffsetY = 20;
+                    
+                    // Card Background
+                    ctx.fillStyle = settings.toolbarBg || '#1f2937';
+                    
+                    const radius = 20;
+                    // Draw rounded rect
+                    ctx.beginPath();
+                    ctx.roundRect(x, y, tileWidth, tileHeight + labelHeight, radius);
+                    ctx.fill();
+                    
+                    ctx.shadowBlur = 0;
+                    ctx.shadowOffsetY = 0;
+
+                    // Image Fit (Full 1:1 Square)
+                    ctx.save();
+                    // Clip area for image
+                    ctx.beginPath();
+                    ctx.roundRect(x, y, tileWidth, tileHeight, [radius, radius, 0, 0]);
+                    ctx.clip();
+                    
+                    // Fit image into square without cropping
+                    const scale = Math.min(tileWidth / data.img.width, tileHeight / data.img.height);
+                    const dw = data.img.width * scale;
+                    const dh = data.img.height * scale;
+                    const dx = x + (tileWidth - dw) / 2;
+                    const dy = y + (tileHeight - dh) / 2;
+                    
+                    // Fill background for image area if letterboxed
+                    ctx.fillStyle = '#000000';
+                    ctx.fillRect(x, y, tileWidth, tileHeight);
+                    
+                    ctx.drawImage(data.img, dx, dy, dw, dh);
+                    ctx.restore();
+
+                    // Label
+                    ctx.fillStyle = settings.textColor || '#FFFFFF';
+                    ctx.font = `bold 32px sans-serif`;
+                    ctx.textAlign = 'left';
+                    ctx.fillText(`CH ${data.chapter.chapterNumber}`, x + 30, y + tileHeight + 35);
+                    
+                    ctx.fillStyle = (settings.textColor || '#FFFFFF') + 'AA';
+                    ctx.font = `28px sans-serif`;
+                    ctx.fillText(data.chapter.title.toUpperCase(), x + 30, y + tileHeight + 75);
+                    
+                    // Border
+                    ctx.strokeStyle = `${settings.accentColor}40`;
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.roundRect(x, y, tileWidth, tileHeight + labelHeight, radius);
+                    ctx.stroke();
+                });
+
+                const dataUrl = canvas.toDataURL("image/png");
+                const link = document.createElement('a');
+                link.href = dataUrl;
+                link.download = `${projectTitle.replace(/\s+/g, '_')}-storyboard-p${p + 1}-${new Date().getTime()}.png`;
+                link.click();
+            }
             
         } catch (err) {
             console.error("Collage generation failed", err);
@@ -1499,192 +1510,209 @@ export const ChaptersPanel: React.FC<ChaptersPanelProps> = ({
             {renderContextMenu()}
             {renderTaggingModal()}
 
-            <div className="flex-shrink-0 p-4 border-b flex flex-col md:flex-row justify-between items-start md:items-center z-30 shadow-sm gap-4" style={{ backgroundColor: settings.toolbarBg, borderColor: settings.toolbarInputBorderColor }}>
-                 <div className="flex items-center gap-4 flex-wrap">
-                    <div className="flex bg-black/20 p-1 rounded-lg">
-                        <button 
-                            onClick={() => setActiveTab('tiles')}
-                            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'tiles' ? 'shadow-sm shadow-black/20' : 'opacity-50'}`}
-                            style={{ 
-                                backgroundColor: activeTab === 'tiles' ? settings.toolbarButtonBg : 'transparent',
-                                color: settings.textColor
-                            }}
-                        >
-                            Chapters
-                        </button>
-                        <button 
-                            onClick={() => setActiveTab('chest')}
-                            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'chest' ? 'shadow-sm shadow-black/20' : 'opacity-50'}`}
-                            style={{ 
-                                backgroundColor: activeTab === 'chest' ? settings.toolbarButtonBg : 'transparent',
-                                color: settings.textColor
-                            }}
-                        >
-                            <ArchiveIcon className="w-4 h-4" />
-                            Locked Chest
-                        </button>
-                    </div>
+            <CollageExportModal 
+                isOpen={isExportModalOpen}
+                onClose={() => setIsExportModalOpen(false)}
+                onExport={handleExportStoryboardCollage}
+                settings={settings}
+                itemCount={stagedChapters.filter(ch => !!ch.photo).length}
+                title="Chapter Storyboard Collage"
+            />
 
-                    {activeTab === 'tiles' && (
-                        <>
-                        <button onClick={onToggleLinkPanel} className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-md transition-colors whitespace-nowrap" style={{ backgroundColor: isLinkPanelOpen ? settings.accentColor : settings.toolbarButtonBg, color: isLinkPanelOpen ? '#FFFFFF' : settings.toolbarText }}>
-                            <LinkIcon />Link Characters
-                        </button>
-                        <button onClick={() => onGeneratePacingAnalysis()} disabled={isGeneratingPacingAnalysis} className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-md disabled:opacity-50 whitespace-nowrap" style={{ backgroundColor: settings.toolbarButtonBg, color: settings.toolbarText }}>
-                            {isGeneratingPacingAnalysis ? <SpinnerIcon className="h-4 w-4" /> : <SparklesIconOutline className="h-4 w-4" />}Analyze Pacing
-                        </button>
-                        </>
-                    )}
-                </div>
-                    
-                    <div className="w-px h-6 bg-gray-600 opacity-20 mx-2 hidden md:block"></div>
-                    
-                    <div className="flex items-center gap-2">
-                        <label className="text-[10px] font-bold uppercase tracking-widest opacity-40 mr-1" style={{ color: settings.toolbarText }}>Zoom</label>
-                        <div className="flex p-0.5 rounded-lg" style={{ backgroundColor: shadeColor(settings.toolbarBg || '#1f2937', isDarkMode ? -15 : 15) }}>
-                            {[0, 1, 2, 3].map(level => (
-                                <button
-                                    key={level}
-                                    onClick={() => onZoomChange(level)}
-                                    className={`w-7 h-7 rounded-md flex items-center justify-center text-xs font-bold transition-all ${zoomLevel === level ? 'shadow-sm scale-105' : 'opacity-40 hover:opacity-100'}`}
-                                    style={{ 
-                                        backgroundColor: zoomLevel === level ? settings.accentColor : 'transparent',
-                                        color: zoomLevel === level ? 'white' : settings.toolbarText
-                                    }}
-                                >
-                                    {level + 1}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className="w-px h-6 bg-gray-600 opacity-20 mx-2 hidden md:block"></div>
-
-                    <div className="flex items-center gap-1">
-                        <button 
-                            onClick={() => onToggleContinuousView} 
-                            className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-md transition-all whitespace-nowrap" 
-                            style={{ 
-                                backgroundColor: isContinuousView ? settings.accentColor : settings.toolbarButtonBg, 
-                                color: isContinuousView ? '#FFFFFF' : settings.toolbarText 
-                            }}
-                            title="Switch between Chapter Tiles and Continuous Focus View"
-                        >
-                            <FocusIcon className="h-4 w-4" />
-                            {isContinuousView ? 'Tile View' : 'Focus View'}
-                        </button>
-                        {!isContinuousView && !isSpreadsheetView && (
+            {!isFocusMode && (
+                <div className={`flex-shrink-0 border-b flex flex-col md:flex-row justify-between items-start md:items-center z-30 shadow-sm gap-4 transition-all p-4`} style={{ backgroundColor: settings.toolbarBg, borderColor: settings.toolbarInputBorderColor }}>
+                    <div className="flex items-center gap-4 flex-wrap">
+                        <div className="flex bg-black/20 p-1 rounded-lg">
                             <button 
-                                onClick={() => setHideHeaders(!hideHeaders)} 
+                                onClick={() => setActiveTab('tiles')}
+                                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'tiles' ? 'shadow-sm shadow-black/20' : 'opacity-50'}`}
+                                style={{ 
+                                    backgroundColor: activeTab === 'tiles' ? settings.toolbarButtonBg : 'transparent',
+                                    color: settings.textColor
+                                }}
+                            >
+                                Chapters
+                            </button>
+                            <button 
+                                onClick={() => setActiveTab('chest')}
+                                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'chest' ? 'shadow-sm shadow-black/20' : 'opacity-50'}`}
+                                style={{ 
+                                    backgroundColor: activeTab === 'chest' ? settings.toolbarButtonBg : 'transparent',
+                                    color: settings.textColor
+                                }}
+                            >
+                                <ArchiveIcon className="w-4 h-4" />
+                                Locked Chest
+                            </button>
+                        </div>
+
+                        {activeTab === 'tiles' && (
+                            <>
+                            <button onClick={onToggleLinkPanel} className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-md transition-colors whitespace-nowrap" style={{ backgroundColor: isLinkPanelOpen ? settings.accentColor : settings.toolbarButtonBg, color: isLinkPanelOpen ? '#FFFFFF' : settings.toolbarText }}>
+                                <LinkIcon />Link Characters
+                            </button>
+                            <button onClick={() => onGeneratePacingAnalysis()} disabled={isGeneratingPacingAnalysis} className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-md disabled:opacity-50 whitespace-nowrap" style={{ backgroundColor: settings.toolbarButtonBg, color: settings.toolbarText }}>
+                                {isGeneratingPacingAnalysis ? <SpinnerIcon className="h-4 w-4" /> : <SparklesIconOutline className="h-4 w-4" />}Analyze Pacing
+                            </button>
+                            </>
+                        )}
+                    </div>
+                        
+                        <div className="w-px h-6 bg-gray-600 opacity-20 mx-2 hidden md:block"></div>
+                        
+                        <div className="flex items-center gap-2">
+                            <label className="text-[10px] font-bold uppercase tracking-widest opacity-40 mr-1" style={{ color: settings.toolbarText }}>Zoom</label>
+                            <div className="flex p-0.5 rounded-lg" style={{ backgroundColor: shadeColor(settings.toolbarBg || '#1f2937', isDarkMode ? -15 : 15) }}>
+                                {[0, 1, 2, 3].map(level => (
+                                    <button
+                                        key={level}
+                                        onClick={() => onZoomChange(level)}
+                                        className={`w-7 h-7 rounded-md flex items-center justify-center text-xs font-bold transition-all ${zoomLevel === level ? 'shadow-sm scale-105' : 'opacity-40 hover:opacity-100'}`}
+                                        style={{ 
+                                            backgroundColor: zoomLevel === level ? settings.accentColor : 'transparent',
+                                            color: zoomLevel === level ? 'white' : settings.toolbarText
+                                        }}
+                                    >
+                                        {level + 1}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="w-px h-6 bg-gray-600 opacity-20 mx-2 hidden md:block"></div>
+
+                        <div className="flex items-center gap-1">
+                            <button 
+                                onClick={onToggleContinuousView} 
                                 className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-md transition-all whitespace-nowrap" 
                                 style={{ 
-                                    backgroundColor: hideHeaders ? settings.accentColor : settings.toolbarButtonBg, 
-                                    color: hideHeaders ? '#FFFFFF' : settings.toolbarText 
+                                    backgroundColor: isContinuousView ? settings.accentColor : settings.toolbarButtonBg, 
+                                    color: isContinuousView ? '#FFFFFF' : settings.toolbarText 
                                 }}
-                                title="Hide/Show Act Headings to maximize vertical space"
+                                title="Switch between Chapter Tiles and Continuous Focus View"
                             >
-                                <ListBulletIcon className="h-4 w-4" />
-                                {hideHeaders ? 'Show Headings' : 'Hide Headings'}
+                                <FocusIcon className="h-4 w-4" />
+                                {isContinuousView ? 'Tile View' : 'Focus View'}
                             </button>
-                        )}
-                        <button 
-                            onClick={onToggleSpreadsheetView} 
-                            className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-md transition-all whitespace-nowrap" 
-                            style={{ 
-                                backgroundColor: isSpreadsheetView ? settings.accentColor : settings.toolbarButtonBg, 
-                                color: isSpreadsheetView ? '#FFFFFF' : settings.toolbarText 
-                            }}
-                            title="Story Architecture Spreadsheet View"
-                        >
-                            <TableIcon className="h-4 w-4" />
-                            Spreadsheet
-                        </button>
-                        <button 
-                            onClick={handleExportStoryboardCollage} 
-                            disabled={isSyncing}
-                            className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-md transition-all whitespace-nowrap" 
-                            style={{ backgroundColor: settings.toolbarButtonBg, color: settings.toolbarText }}
-                            title="Export all chapter scene images as a storyboard collage (PNG)"
-                        >
-                            {isSyncing ? <SpinnerIcon className="h-4 w-4" /> : <ViewGridIcon className="h-4 w-4" />}
-                            Storyboard Collage
-                        </button>
-                        <button 
-                            onClick={async () => {
-                                const zip = new JSZip();
-                                const md = exportChaptersToMarkdown(chapters);
-                                const csv = generateSpreadsheetCSV(chapters);
-                                
-                                zip.file("manuscript.md", md);
-                                zip.file("story_architecture.csv", csv);
-                                
-                                const content = await zip.generateAsync({ type: "blob" });
-                                const url = URL.createObjectURL(content);
-                                const a = document.createElement('a');
-                                a.href = url;
-                                a.download = `novel-export-${new Date().getTime()}.zip`;
-                                a.click();
-                                URL.revokeObjectURL(url);
-                            }} 
-                            className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-md transition-all whitespace-nowrap" 
-                            style={{ backgroundColor: settings.toolbarButtonBg, color: settings.toolbarText }}
-                            title="Export all chapters to Markdown and Spreadsheet (ZIP)"
-                        >
-                            <SaveIcon className="h-4 w-4" />
-                            Export MD+Sheet
-                        </button>
-                        <button 
-                            onClick={() => {
-                                const input = document.createElement('input');
-                                input.type = 'file';
-                                input.accept = '.md,.txt';
-                                input.onchange = (e) => {
-                                    const file = (e.target as HTMLInputElement).files?.[0];
-                                    if (file) {
-                                        const reader = new FileReader();
-                                        reader.onload = (re) => {
-                                            const content = re.target?.result as string;
-                                            const imported = importChaptersFromMarkdown(content, chapters);
-                                            dialog.confirm(`This will import ${imported.length} chapters and update existing ones. Continue?`, "Import Chapters").then(confirmed => {
-                                                if (confirmed) {
-                                                    onSetChapters(imported);
-                                                    setIsDirty(true);
-                                                }
-                                            });
-                                        };
-                                        reader.readAsText(file);
-                                    }
-                                };
-                                input.click();
-                            }} 
-                            className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-md transition-all whitespace-nowrap" 
-                            style={{ backgroundColor: settings.toolbarButtonBg, color: settings.toolbarText }}
-                            title="Import and map chapters from a Markdown file"
-                        >
-                            <ImportIcon className="h-4 w-4" />
-                            Import MD
-                        </button>
-                    </div>
-                 
-                 {isDirty && 
-                    <div className="flex items-center gap-3 animate-in fade-in slide-in-from-right-4 duration-300">
-                        <span className="text-xs font-bold uppercase tracking-tighter opacity-50" style={{ color: settings.toolbarText }}>Sort Pending</span>
-                        <button 
-                            onClick={() => handleCommitChanges()} 
-                            disabled={isSyncing}
-                            className={`flex items-center gap-2 text-xs font-bold px-4 py-1.5 rounded-full shadow-lg transition-all ${isSyncing ? 'opacity-50' : 'hover:scale-105 active:scale-95 pulse-subtle'}`}
-                            style={{ backgroundColor: settings.successColor, color: getContrastColor(settings.successColor) }}
-                        >
-                            {isSyncing ? <SpinnerIcon className="h-3 w-3" /> : <CheckCircleIcon className="h-3 w-3" />}
-                            Commit Changes
-                        </button>
-                    </div>
-                 }
-            </div>
+                            {!isContinuousView && (
+                                <button 
+                                    onClick={() => dispatch({ type: 'UPDATE_ASSEMBLY_VIEW_STATE', payload: { isFocusMode: true } })} 
+                                    className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-md transition-all whitespace-nowrap" 
+                                    style={{ 
+                                        backgroundColor: settings.toolbarButtonBg, 
+                                        color: settings.toolbarText 
+                                    }}
+                                    title="Enter Focus Mode to maximize screen space"
+                                >
+                                    <FocusIcon className="h-4 w-4" />
+                                    Focus Mode
+                                </button>
+                            )}
+                            <button 
+                                onClick={onToggleSpreadsheetView} 
+                                className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-md transition-all whitespace-nowrap" 
+                                style={{ 
+                                    backgroundColor: isSpreadsheetView ? settings.accentColor : settings.toolbarButtonBg, 
+                                    color: isSpreadsheetView ? '#FFFFFF' : settings.toolbarText 
+                                }}
+                                title="Story Architecture Spreadsheet View"
+                            >
+                                <TableIcon className="h-4 w-4" />
+                                Spreadsheet
+                            </button>
+                            <button 
+                                onClick={() => setIsExportModalOpen(true)} 
+                                disabled={isSyncing}
+                                className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-md transition-all whitespace-nowrap" 
+                                style={{ backgroundColor: settings.toolbarButtonBg, color: settings.toolbarText }}
+                                title="Export all chapter scene images as a storyboard collage (PNG)"
+                            >
+                                {isSyncing ? <SpinnerIcon className="h-4 w-4" /> : <ViewGridIcon className="h-4 w-4" />}
+                                Storyboard Collage
+                            </button>
+                            <button 
+                                onClick={async () => {
+                                    const zip = new JSZip();
+                                    const md = exportChaptersToMarkdown(chapters);
+                                    const csv = generateSpreadsheetCSV(chapters);
+                                    
+                                    zip.file("manuscript.md", md);
+                                    zip.file("story_architecture.csv", csv);
+                                    
+                                    const content = await zip.generateAsync({ type: "blob" });
+                                    const url = URL.createObjectURL(content);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = `novel-export-${new Date().getTime()}.zip`;
+                                    a.click();
+                                    URL.revokeObjectURL(url);
+                                }} 
+                                className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-md transition-all whitespace-nowrap" 
+                                style={{ backgroundColor: settings.toolbarButtonBg, color: settings.toolbarText }}
+                                title="Export all chapters to Markdown and Spreadsheet (ZIP)"
+                            >
+                                <SaveIcon className="h-4 w-4" />
+                                Export MD+Sheet
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    const input = document.createElement('input');
+                                    input.type = 'file';
+                                    input.accept = '.md,.txt';
+                                    input.onchange = (e) => {
+                                        const file = (e.target as HTMLInputElement).files?.[0];
+                                        if (file) {
+                                            const reader = new FileReader();
+                                            reader.onload = (re) => {
+                                                const content = re.target?.result as string;
+                                                const imported = importChaptersFromMarkdown(content, chapters);
+                                                dialog.confirm(`This will import ${imported.length} chapters and update existing ones. Continue?`, "Import Chapters").then(confirmed => {
+                                                    if (confirmed) {
+                                                        onSetChapters(imported);
+                                                        setIsDirty(true);
+                                                    }
+                                                });
+                                            };
+                                            reader.readAsText(file);
+                                        }
+                                    };
+                                    input.click();
+                                }} 
+                                className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-md transition-all whitespace-nowrap" 
+                                style={{ backgroundColor: settings.toolbarButtonBg, color: settings.toolbarText }}
+                                title="Import and map chapters from a Markdown file"
+                            >
+                                <ImportIcon className="h-4 w-4" />
+                                Import MD
+                            </button>
+                        </div>
+                    
+                    {isDirty && 
+                        <div className="flex items-center gap-3 animate-in fade-in slide-in-from-right-4 duration-300">
+                            <span className="text-xs font-bold uppercase tracking-tighter opacity-50" style={{ color: settings.toolbarText }}>Sort Pending</span>
+                            <button 
+                                onClick={() => handleCommitChanges()} 
+                                disabled={isSyncing}
+                                className={`flex items-center gap-2 text-xs font-bold px-4 py-1.5 rounded-full shadow-lg transition-all ${isSyncing ? 'opacity-50' : 'hover:scale-105 active:scale-95 pulse-subtle'}`}
+                                style={{ backgroundColor: settings.successColor, color: getContrastColor(settings.successColor) }}
+                            >
+                                {isSyncing ? <SpinnerIcon className="h-3 w-3" /> : <CheckCircleIcon className="h-3 w-3" />}
+                                Commit Changes
+                            </button>
+                        </div>
+                    }
+                </div>
+            )}
             
             <div className="w-full h-full flex min-h-0">
                 <div ref={scrollRef} className="flex-grow h-full overflow-y-auto p-4 scroll-smooth" onDrop={handleDragEnd} onDragOver={handleDragOver}>
-                     {pacingAnalysis && <PacingHeatmap analysis={pacingAnalysis} settings={settings} />}
+                     {pacingAnalysis && !isFocusMode && (
+                        <PacingHeatmap 
+                            analysis={pacingAnalysis} 
+                            settings={settings} 
+                            onDelete={() => dispatch({ type: 'UPDATE_ASSEMBLY_VIEW_STATE', payload: { pacingAnalysis: null } })} 
+                        />
+                     )}
                      {errorMessage && <AIError message={errorMessage} onDismiss={() => onSetError(null)} className="mb-4" />}
                      
                      {activeTab === 'chest' ? (
@@ -1714,15 +1742,15 @@ export const ChaptersPanel: React.FC<ChaptersPanelProps> = ({
                             scrollContainerRef={scrollRef}
                         />
                      ) : (
-                        <div className={`flex flex-col ${hideHeaders ? 'gap-4' : 'gap-12'} w-full pb-32`}>
+                        <div className={`flex flex-col ${isFocusMode ? 'gap-4' : 'gap-12'} w-full pb-32`}>
                             {actNums.map(actNum => (
-                                <div key={actNum} data-act={actNum} className={hideHeaders ? "" : "space-y-4"}>
-                                    {!hideHeaders && <EditableActHeader actNum={actNum} settings={settings} />}
+                                <div key={actNum} data-act={actNum} className={isFocusMode ? "" : "space-y-4"}>
+                                    {!isFocusMode && <EditableActHeader actNum={actNum} settings={settings} />}
                                     <div 
-                                        className={`rounded-xl grid gap-6 p-6 transition-all duration-300 ${overAct === actNum ? 'ring-2' : 'bg-black/10'}`} 
+                                        className={`rounded-xl grid gap-6 transition-all duration-300 ${isFocusMode ? 'p-0' : 'p-6 bg-black/10'} ${overAct === actNum ? 'ring-2' : ''}`} 
                                         style={{ 
                                             ['--tw-ring-color' as any]: settings.accentColor,
-                                            backgroundColor: overAct === actNum ? `${settings.accentColor}10` : 'rgba(0,0,0,0.15)',
+                                            backgroundColor: overAct === actNum ? `${settings.accentColor}10` : (isFocusMode ? 'transparent' : 'rgba(0,0,0,0.15)'),
                                             gridTemplateColumns: `repeat(auto-fill, minmax(${zoomLevel === 0 ? '12rem' : zoomLevel === 1 ? '9rem' : zoomLevel === 2 ? '6rem' : '4rem'}, 1fr))`
                                         }}
                                     >
@@ -1759,21 +1787,35 @@ export const ChaptersPanel: React.FC<ChaptersPanelProps> = ({
                                 </div>
                             ))}
                             
-                            <button 
-                                onClick={handleAddAct}
-                                className="group flex items-center justify-center gap-3 py-12 rounded-2xl border-2 border-dashed transition-all hover:border-solid opacity-20 hover:opacity-100 mx-auto w-full max-w-sm"
-                                style={{ borderColor: settings.toolbarInputBorderColor || 'rgba(255,255,255,0.1)', color: settings.textColor }}
-                            >
-                                <div className="p-2 rounded-full bg-white/5 group-hover:bg-white/10 transition-colors">
-                                    <ChevronDownIcon className="h-5 w-5 rotate-[-90deg]" />
-                                </div>
-                                <span className="font-black uppercase tracking-[0.2em] text-sm">Add Act</span>
-                            </button>
+                            {!isFocusMode && (
+                                <button 
+                                    onClick={handleAddAct}
+                                    className="group flex items-center justify-center gap-3 py-12 rounded-2xl border-2 border-dashed transition-all hover:border-solid opacity-20 hover:opacity-100 mx-auto w-full max-w-sm"
+                                    style={{ borderColor: settings.toolbarInputBorderColor || 'rgba(255,255,255,0.1)', color: settings.textColor }}
+                                >
+                                    <div className="p-2 rounded-full bg-white/5 group-hover:bg-white/10 transition-colors">
+                                        <ChevronDownIcon className="h-5 w-5 rotate-[-90deg]" />
+                                    </div>
+                                    <span className="font-black uppercase tracking-[0.2em] text-sm">Add Act</span>
+                                </button>
+                            )}
                         </div>
                      )}
                 </div>
 
-                {isLinkPanelOpen && (
+                {isFocusMode && (
+                    <button 
+                        onClick={() => dispatch({ type: 'UPDATE_ASSEMBLY_VIEW_STATE', payload: { isFocusMode: false } })}
+                        className="fixed bottom-8 right-8 z-[100] p-4 rounded-full shadow-2xl transition-all hover:scale-110 active:scale-95 group"
+                        style={{ backgroundColor: settings.accentColor, color: getContrastColor(settings.accentColor) }}
+                        title="Exit Focus Mode (Esc)"
+                    >
+                        <UnfocusIcon className="h-6 w-6" />
+                        <span className="absolute right-full mr-4 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-lg bg-black/80 text-white text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">Exit Focus Mode</span>
+                    </button>
+                )}
+
+                {isLinkPanelOpen && !isFocusMode && (
                     <div className="w-80 h-full flex-shrink-0 border-l animate-in slide-in-from-right duration-500 ease-[cubic-bezier(0.2,0,0,1)]" style={{ backgroundColor: settings.toolbarBg, borderColor: settings.toolbarInputBorderColor }}>
                         <div className="h-full flex flex-col">
                             <div className="p-4 border-b flex items-center justify-between" style={{ borderColor: settings.toolbarInputBorderColor }}>
