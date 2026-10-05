@@ -1198,6 +1198,13 @@ export const ChaptersPanel: React.FC<ChaptersPanelProps> = ({
     const isDarkMode = !isColorLight(settings.textColor);
 
     useEffect(() => {
+        // Feature 2: Trigger a fresh pacing analysis whenever the pacing view is accessed (on mount)
+        if (pacingAnalysis && !isGeneratingPacingAnalysis) {
+            onGeneratePacingAnalysis();
+        }
+    }, []); // Run on mount
+
+    useEffect(() => {
         if (!isDirty) {
             setStagedChapters(chapters);
         }
@@ -1220,6 +1227,11 @@ export const ChaptersPanel: React.FC<ChaptersPanelProps> = ({
         setIsSyncing(true);
         const renumbered = chaptersToCommit.map((ch, i) => ({ ...ch, chapterNumber: i + 1 }));
         onSetChapters(renumbered);
+        
+        // Feature 2: Trigger immediate fresh analysis after reordering when changes are committed
+        if (pacingAnalysis) {
+            onGeneratePacingAnalysis();
+        }
         
         if (directoryHandle) {
             try {

@@ -1320,9 +1320,15 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
              dispatch({ type: 'REGISTER_AI_TASK', payload: { id: taskId, label: "Analyzing narrative pacing", type: 'plot', status: 'working', contexts: ['assembly-plot'] } });
              dispatch({ type: 'UPDATE_ASSEMBLY_VIEW_STATE', payload: { isGeneratingPacingAnalysis: true } });
              try {
-                 const prompt = `Analyze the pacing of the entire novel based on chapter summaries. Score each on speed and tension.
-                 Story Structure (including character presence): 
-                 ${chapters.map(c => `[ID: ${c.id}] Ch ${c.chapterNumber}: ${c.summary} (Characters: ${getCharacterNames(c.characterIds)})`).join('\n')}`;
+                 const prompt = `Analyze the narrative pacing of the entire novel based on the actual manuscript content and chapter outlines. Score each chapter on speed and tension (-1.0 to 1.0).
+                 Manuscript Data & Hierarchy (including character presence): 
+                 ${chapters.map(c => {
+                     const tempDiv = document.createElement('div');
+                     tempDiv.innerHTML = c.content;
+                     const manuscriptText = tempDiv.innerText.trim();
+                     const textSnippet = manuscriptText ? manuscriptText.substring(0, 2000) : "(No manuscript content yet)";
+                     return `[ID: ${c.id}] Ch ${c.chapterNumber}: ${c.title}\nOutline: ${c.outline || c.summary}\nManuscript Text (Preview): ${textSnippet}\n(Characters: ${getCharacterNames(c.characterIds)})`;
+                 }).join('\n\n')}`;
                  const res = await getAI(settings.geminiApiKey).models.generateContent({ 
                      model: 'gemini-1.5-flash', 
                      contents: [{ role: 'user', parts: [{ text: prompt }] }], 

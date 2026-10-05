@@ -637,10 +637,10 @@ export const Manuscript: React.FC<ManuscriptProps> = ({
                         const textBeforeCursor = textContent.substring(0, offset - 1);
                         
                         // Auto-correct second letter capitalization (e.g., THis -> This)
-                        const capsMatch = textBeforeCursor.match(/\b([A-Z])([A-Z])([a-z][a-z0-9'"]*)([.,!?;:]*)$/);
+                        const capsMatch = textBeforeCursor.match(/\b([A-Z])([A-Z])([a-z][a-z0-9]*)((?:[!"'().,?;:\[\]\u201C\u201D\u2018\u2019])*)$/);
                         if (capsMatch) {
                             const [full, first, second, rest, punct] = capsMatch;
-                            const corrected = first + second.toLowerCase() + rest + punct;
+                            const corrected = first + second.toLowerCase() + rest + (punct || '');
                             const startIndex = offset - 1 - full.length;
                             node.textContent = textContent.substring(0, startIndex) + corrected + textContent.substring(offset - 1);
                             const newCaretPos = startIndex + corrected.length + 1;
