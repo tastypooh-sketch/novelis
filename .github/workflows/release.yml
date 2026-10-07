@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
+        os: [macos-latest, windows-latest]
 
     steps:
       - name: Check out Git repository
@@ -35,12 +35,6 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Install Linux build tools
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libarchive-tools libicns-dev graphicsmagick xz-utils rpm
-
       - name: Build & Release (macOS Universal)
         if: matrix.os == 'macos-latest'
         run: npm run electron:build:mac -- --publish always
@@ -50,12 +44,6 @@ jobs:
       - name: Build & Release (Windows Setup)
         if: matrix.os == 'windows-latest'
         run: npm run electron:build:win -- --publish always
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build & Release (Linux Chromebook/Debian)
-        if: matrix.os == 'ubuntu-latest'
-        run: npm run electron:build:linux -- --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
