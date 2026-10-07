@@ -453,22 +453,65 @@ export const Manuscript: React.FC<ManuscriptProps> = ({
     }, [activeChapterId, onSaveToFolder, onActiveChapterIdChange, highlightTextInEditor]);
 
     const handleFindReplaceUpdate = (result: SearchResult, newText: string) => {
-        if (result.chapterId !== activeChapterId) { handleNavigateMatch(result); return; }
+        if (result.chapterId !== activeChapterId) { 
+            // Replace in state directly if not active chapter
+            const chapter = chapters.find(c => c.id === result.chapterId);
+            if (chapter) {
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = chapter.content;
+                const walker = document.createTreeWalker(tempDiv, NodeFilter.SHOW_TEXT, null);
+                let currentIndex = 0;
+                let node: Node | null = null;
+                while(node = walker.nextNode()) {
+                    const nodeLen = node.textContent?.length || 0;
+                    if (currentIndex + nodeLen > result.index) {
+                        const startOffset = result.index - currentIndex;
+                        const text = node.textContent || '';
+                        node.textContent = text.substring(0, startOffset) + newText + text.substring(startOffset + result.length);
+                        dispatch({ type: 'UPDATE_CHAPTER', payload: { id: chapter.id, updates: { content: tempDiv.innerHTML } } });
+                        return;
+                    }
+                    currentIndex += nodeLen;
+                }
+            }
+            return; 
+        }
         document.execCommand('insertText', false, newText);
     };
 
-    const handleGlobalReplace = (find: string, replace: string, scope: 'chapter' | 'manuscript') => {
-        const regex = new RegExp(find.replace(/[.*+?${}()|[\]\\]/g, '\\$&'), 'g');
-        if (scope === 'chapter') {
-             handleChapterDetailsChange(activeChapter.id, { content: activeChapter.content.replace(regex, replace) });
-        } else {
-             chapters.forEach(ch => {
-                 if (ch.content.match(regex)) {
-                     dispatch({ type: 'UPDATE_CHAPTER', payload: { id: ch.id, updates: { content: ch.content.replace(regex, replace) } } });
-                 }
-             });
-             dialog.alert("Global replace complete.", "Find & Replace");
-        }
+    const handleGlobalReplace = (find: string, replace: string, scope: 'chapter' | 'manuscript', caseSensitive: boolean) => {
+        const escapedFind = find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(escapedFind, caseSensitive ? 'g' : 'gi');
+        
+        const targetChapters = scope === 'chapter' ? [activeChapter] : chapters;
+        let totalReplaced = 0;
+
+        targetChapters.forEach(ch => {
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = ch.content;
+            const walker = document.createTreeWalker(tempDiv, NodeFilter.SHOW_TEXT, null);
+            let changed = false;
+            const textNodes: Text[] = [];
+            let node: Node | null = null;
+            while(node = walker.nextNode()) {
+                textNodes.push(node as Text);
+            }
+            
+            textNodes.forEach(textNode => {
+                if (textNode.textContent && regex.test(textNode.textContent)) {
+                    const matches = textNode.textContent.match(regex);
+                    if (matches) totalReplaced += matches.length;
+                    textNode.textContent = textNode.textContent.replace(regex, replace);
+                    changed = true;
+                }
+            });
+
+            if (changed) {
+                dispatch({ type: 'UPDATE_CHAPTER', payload: { id: ch.id, updates: { content: tempDiv.innerHTML } } });
+            }
+        });
+        
+        dialog.alert(`Replace complete. Found and replaced ${totalReplaced} occurrences.`, "Find & Replace");
     };
 
     useEffect(() => {

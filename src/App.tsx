@@ -382,6 +382,7 @@ const App: React.FC = () => {
     
     // Local App State
     const [activeChapterId, setActiveChapterId] = useState<string>('');
+    const [notification, setNotification] = useState<string | null>(null);
     
     // Set activeChapterId to last chapter whenever chapters are loaded or added
     const isFirstLoad = useRef(true);

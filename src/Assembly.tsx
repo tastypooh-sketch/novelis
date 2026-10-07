@@ -312,6 +312,7 @@ const characterProfileSchema = {
 const chapterDetailsSchema = {
     type: Type.OBJECT,
     properties: {
+        tagline: { type: Type.STRING, description: "A one-sentence evocative tagline for the chapter." },
         summary: { type: Type.STRING, description: "A 1-2 sentence summary of the chapter's plot." },
         outline: { type: Type.STRING, description: "A markdown beat-by-beat outline of the chapter." },
         analysis: { type: Type.STRING, description: "A markdown analysis of conflict, stakes, and emotional resonance." },
@@ -335,7 +336,7 @@ const chapterDetailsSchema = {
         periodTime: { type: Type.STRING, description: "When and how long." },
         location: { type: Type.STRING, description: "Physical setting." }
     },
-    required: ["summary", "outline", "analysis", "keywords"]
+    required: ["tagline", "summary", "outline", "analysis", "keywords"]
 };
 
 const snippetsSchema = {
@@ -547,7 +548,8 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
                                  currentTitle.toLowerCase() === 'chapter' || 
                                  currentTitle.toLowerCase().match(/^chapter\s+\d+$/);
             
-            const prompt = `Generate structural details for Chapter ${chapter.chapterNumber}: "${chapter.title}" based on these rough notes.
+            const prompt = `Generate structural details for Chapter ${chapter.chapterNumber}: "${chapter.title}" based on these rough notes. 
+            Include a compelling one-sentence tagline that captures the essence of the chapter.
             ${isInitialTitle ? "IMPORTANT: Since the current title is generic or just a placeholder, also generate a creative and evocative specific title for this chapter based on the content. The user wants to replace 'Chapter' with something descriptive." : ""}
             Notes: ${rawNotes}`;
 
@@ -571,7 +573,7 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
             if (data) {
                 const updates: Partial<IChapter> = { 
                     ...data, 
-                    previousDetails: chapter.summary ? { summary: chapter.summary, outline: chapter.outline, analysis: chapter.analysis, keywords: chapter.keywords } : undefined 
+                    previousDetails: chapter.summary || chapter.tagline ? { tagline: chapter.tagline, summary: chapter.summary, outline: chapter.outline, analysis: chapter.analysis, keywords: chapter.keywords } : undefined 
                 };
                 
                 if (isInitialTitle && data.title) {
@@ -598,7 +600,7 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
         setAiState(prev => ({ ...prev, isGeneratingChapter: chapter.id, errorMessage: null }));
         try {
             const tempDiv = document.createElement('div'); tempDiv.innerHTML = chapter.content;
-            const prompt = `Analyze the actual text of this chapter to update the summary, outline, and analysis based on what was actually written.
+            const prompt = `Analyze the actual text of this chapter to update the tagline (one sentence), summary, outline, and analysis based on what was actually written.
             Also extract structural metadata for the story architecture spreadsheet (story event, quadrant, inciting incident, progressive complication, crisis, climax, resolution, value levels, trope scene type, polarity, turning point, POV, time/duration, and location).
             Text: ${tempDiv.innerText.substring(0, 15000)}`;
             const response = await getAI(settings.geminiApiKey).models.generateContent({ 
@@ -611,7 +613,7 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
             });
             const data = JSON.parse(response.text || '{}');
             if (data) {
-                const updates = { ...data, previousDetails: { summary: chapter.summary, outline: chapter.outline, analysis: chapter.analysis, keywords: chapter.keywords } };
+                const updates = { ...data, previousDetails: { tagline: chapter.tagline, summary: chapter.summary, outline: chapter.outline, analysis: chapter.analysis, keywords: chapter.keywords } };
                 dispatch({ type: 'UPDATE_CHAPTER', payload: { id: chapter.id, updates } });
                 dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'completed', label: `Chapter updated from manuscript: ${chapter.chapterNumber}` } } });
                 return updates;
