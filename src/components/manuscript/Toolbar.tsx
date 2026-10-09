@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import type { IChapter, EditorSettings, Palette, WritingGoals, ToolbarVisibility } from '../../types';
 import { 
-    HistoryIcon, StatsIcon, NoteIcon, SearchIcon, KeyboardIcon, PageTransitionIcon, SpellcheckIcon, 
+    HistoryIcon, StatsIcon, NoteIcon, SearchIcon, KeyboardIcon, PageTransitionIcon, PageScrollIcon, PageFadeIcon, SpellcheckIcon, 
     SpeakerOnIcon, SpeakerOffIcon, ExitFullscreenIcon, EnterFullscreenIcon, UnfocusIcon, FocusIcon, CogIcon, EarIcon,
     BrushIcon, JustifyIcon, BookOpenIcon, ProofreadIcon, ImportIcon, SaveIcon, LineHeightIcon, ChevronDownIcon,
     SparklesIconOutline, ScrapbookIcon
@@ -89,6 +89,7 @@ interface ToolbarProps {
   hasDirectory: boolean;
   onToggleReadAloud: () => void;
   ttsStatus: TTSStatus;
+  isReadAloudOpen?: boolean;
   isFindReplaceActive?: boolean;
   onExportNove: () => void;
   onExportStandaloneNove: () => void;
@@ -109,6 +110,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     isSoundEnabled, onToggleSound, isFullscreen, onToggleFullscreen,
     isSinglePageView, isSpellcheckEnabled, onToggleSpellcheck, onToggleTransitionStyle,
     hasDirectory, onToggleReadAloud, ttsStatus,
+    isReadAloudOpen = false,
     isFindReplaceActive = false,
     onExportNove,
     onExportStandaloneNove,
@@ -267,8 +269,23 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <ToolbarButton title="Toggle Notes Panel" onClick={onToggleNotesPanel} settings={settings} isVisible={settings.toolbarVisibility?.notes} isActive={isNotesPanelOpen}><NoteIcon /></ToolbarButton>
         <ToolbarButton title="Find and Replace (Ctrl+F)" onClick={() => onToggleModal('findReplace')} settings={settings} isVisible={settings.toolbarVisibility?.findReplace} isActive={isFindReplaceActive}><SearchIcon /></ToolbarButton>
         <ToolbarButton title="Text Shortcuts" onClick={() => onToggleModal('shortcuts')} settings={settings} isVisible={settings.toolbarVisibility?.shortcuts}><KeyboardIcon /></ToolbarButton>
-        <ToolbarButton title="Read Aloud (TTS)" onClick={onToggleReadAloud} settings={settings} isVisible={settings.toolbarVisibility?.readAloud} isActive={ttsStatus !== 'idle'}><EarIcon className="h-5 w-5" /></ToolbarButton>
-        <ToolbarButton title={`Page Transition: ${settings.transitionStyle === 'scroll' ? 'Scroll' : 'Fade'}`} onClick={onToggleTransitionStyle} settings={settings} isVisible={settings.toolbarVisibility?.pageTransition}><PageTransitionIcon /></ToolbarButton>
+        <ToolbarButton 
+            title={(isReadAloudOpen || ttsStatus !== 'idle') ? "Close / Stop Read Aloud (TTS)" : "Read Aloud (TTS)"} 
+            onClick={onToggleReadAloud} 
+            settings={settings} 
+            isVisible={settings.toolbarVisibility?.readAloud} 
+            isActive={isReadAloudOpen || ttsStatus !== 'idle'}
+        >
+            <EarIcon className="h-5 w-5" />
+        </ToolbarButton>
+        <ToolbarButton 
+            title={`Page Transition: ${settings.transitionStyle === 'fade' ? 'Fade' : 'Scroll'}`} 
+            onClick={onToggleTransitionStyle} 
+            settings={settings} 
+            isVisible={settings.toolbarVisibility?.pageTransition}
+        >
+            {settings.transitionStyle === 'fade' ? <PageFadeIcon /> : <PageScrollIcon />}
+        </ToolbarButton>
         <ToolbarButton title="Toggle Spell Check (Native Browser)" onClick={onToggleSpellcheck} settings={settings} isVisible={settings.toolbarVisibility?.spellcheck} isActive={isSpellcheckEnabled}><SpellcheckIcon /></ToolbarButton>
         <ToolbarButton title="AI Proofreader" onClick={() => onToggleModal('spellCheck')} settings={settings} isVisible={settings.toolbarVisibility?.spellcheck}><ProofreadIcon /></ToolbarButton>
         <ToolbarButton title="Narrative Consistency Auditor" onClick={() => onToggleModal('consistencyAudit')} settings={settings}><SparklesIconOutline className="h-5 w-5" /></ToolbarButton>

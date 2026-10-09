@@ -29,7 +29,7 @@ export const getCharacterInterviewResponse = async (
 
   try {
     const response = await getAI(apiKey).models.generateContent({
-      model: "gemini-1.5-flash",
+      model: "gemini-3.8-flash",
       contents: [
         { role: 'user', parts: [{ text: systemPrompt }] },
         ...history,

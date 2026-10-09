@@ -193,7 +193,7 @@ ${userRequest}
 Provide your response in Markdown format.`;
 
             const response = await getAI(settings.geminiApiKey).models.generateContent({ 
-                model: 'gemini-1.5-flash', 
+                model: 'gemini-3.8-flash', 
                 contents: [{ role: 'user', parts: [{ text: taskPrompt }] }],
                 config: {
                     systemInstruction
@@ -302,7 +302,7 @@ Provide your response in Markdown format.`;
             """`;
             
             const response = await getAI(settings.geminiApiKey).models.generateContent({ 
-                model: 'gemini-1.5-flash', 
+                model: 'gemini-3.8-flash', 
                 contents: [{ role: 'user', parts: [{ text: prompt }] }] 
             });
             onChapterDetailsChange(activeChapter.id, { betaFeedbackSummary: response.text });

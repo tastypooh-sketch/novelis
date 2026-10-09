@@ -1181,6 +1181,20 @@ export const ChaptersPanel: React.FC<ChaptersPanelProps> = ({
 }) => {
     const dialog = useDialog();
     const [activeTab, setActiveTab] = useState<'tiles' | 'chest'>('tiles');
+    const [isToolsOpen, setIsToolsOpen] = useState(false);
+    const [isExportOpen, setIsExportOpen] = useState(false);
+    const toolsRef = useRef<HTMLDivElement>(null);
+    const exportRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (toolsRef.current && !toolsRef.current.contains(e.target as Node)) setIsToolsOpen(false);
+            if (exportRef.current && !exportRef.current.contains(e.target as Node)) setIsExportOpen(false);
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
     const { renderContextMenu, renderTaggingModal } = useLockedChestSelection('chapters', settings);
     const [stagedChapters, setStagedChapters] = useState<IChapter[]>(chapters);
     const [isDirty, setIsDirty] = useState(false);
@@ -1532,54 +1546,207 @@ export const ChaptersPanel: React.FC<ChaptersPanelProps> = ({
             />
 
             {!isFocusMode && (
-                <div className={`flex-shrink-0 border-b flex flex-col md:flex-row justify-between items-start md:items-center z-30 shadow-sm gap-4 transition-all p-4`} style={{ backgroundColor: settings.toolbarBg, borderColor: settings.toolbarInputBorderColor }}>
-                    <div className="flex items-center gap-4 flex-wrap">
-                        <div className="flex bg-black/20 p-1 rounded-lg">
+                <div className={`flex-shrink-0 border-b flex flex-col md:flex-row justify-between items-start md:items-center z-40 shadow-sm gap-4 transition-all p-3`} style={{ backgroundColor: settings.toolbarBg, borderColor: settings.toolbarInputBorderColor }}>
+                    <div className="flex items-center gap-3 flex-wrap">
+                        {/* View Mode Segmented Pills */}
+                        <div className="flex bg-black/20 p-1 rounded-xl border border-white/5">
                             <button 
-                                onClick={() => setActiveTab('tiles')}
-                                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'tiles' ? 'shadow-sm shadow-black/20' : 'opacity-50'}`}
+                                onClick={() => {
+                                    setActiveTab('tiles');
+                                    if (isSpreadsheetView) onToggleSpreadsheetView();
+                                    if (isContinuousView) onToggleContinuousView();
+                                }}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'tiles' && !isSpreadsheetView && !isContinuousView ? 'shadow-lg' : 'opacity-40 hover:opacity-100'}`}
                                 style={{ 
-                                    backgroundColor: activeTab === 'tiles' ? settings.toolbarButtonBg : 'transparent',
+                                    backgroundColor: activeTab === 'tiles' && !isSpreadsheetView && !isContinuousView ? settings.toolbarButtonBg : 'transparent',
                                     color: settings.textColor
                                 }}
                             >
-                                Chapters
+                                <ViewGridIcon className="w-3.5 h-3.5" />
+                                Tiles
                             </button>
                             <button 
-                                onClick={() => setActiveTab('chest')}
-                                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'chest' ? 'shadow-sm shadow-black/20' : 'opacity-50'}`}
+                                onClick={() => {
+                                    if (!isContinuousView) onToggleContinuousView();
+                                    setActiveTab('tiles');
+                                }}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${isContinuousView ? 'shadow-lg' : 'opacity-40 hover:opacity-100'}`}
+                                style={{ 
+                                    backgroundColor: isContinuousView ? settings.toolbarButtonBg : 'transparent',
+                                    color: settings.textColor
+                                }}
+                            >
+                                <FocusIcon className="w-3.5 h-3.5" />
+                                Focus
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    if (!isSpreadsheetView) onToggleSpreadsheetView();
+                                    setActiveTab('tiles');
+                                }}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${isSpreadsheetView ? 'shadow-lg' : 'opacity-40 hover:opacity-100'}`}
+                                style={{ 
+                                    backgroundColor: isSpreadsheetView ? settings.toolbarButtonBg : 'transparent',
+                                    color: settings.textColor
+                                }}
+                            >
+                                <TableIcon className="w-3.5 h-3.5" />
+                                Sheet
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    setActiveTab('chest');
+                                    if (isSpreadsheetView) onToggleSpreadsheetView();
+                                    if (isContinuousView) onToggleContinuousView();
+                                }}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'chest' ? 'shadow-lg' : 'opacity-40 hover:opacity-100'}`}
                                 style={{ 
                                     backgroundColor: activeTab === 'chest' ? settings.toolbarButtonBg : 'transparent',
                                     color: settings.textColor
                                 }}
                             >
-                                <ArchiveIcon className="w-4 h-4" />
-                                Locked Chest
+                                <ArchiveIcon className="w-3.5 h-3.5" />
+                                Chest
                             </button>
                         </div>
 
-                        {activeTab === 'tiles' && (
-                            <>
-                            <button onClick={onToggleLinkPanel} className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-md transition-colors whitespace-nowrap" style={{ backgroundColor: isLinkPanelOpen ? settings.accentColor : settings.toolbarButtonBg, color: isLinkPanelOpen ? '#FFFFFF' : settings.toolbarText }}>
-                                <LinkIcon />Link Characters
+                        <div className="w-px h-6 bg-gray-600 opacity-20 mx-1 hidden md:block"></div>
+
+                        {/* AI & Analysis Tools Dropdown */}
+                        <div className="relative" ref={toolsRef}>
+                            <button 
+                                onClick={() => setIsToolsOpen(!isToolsOpen)}
+                                className={`flex items-center gap-2 text-xs font-bold uppercase tracking-wider px-3 py-2 rounded-lg transition-all ${isToolsOpen ? 'opacity-100' : 'opacity-60 hover:opacity-100'}`}
+                                style={{ backgroundColor: settings.toolbarButtonBg, color: settings.toolbarText }}
+                            >
+                                <SparklesIconOutline className="h-3.5 w-3.5" />
+                                Tools
+                                <ChevronDownIcon className={`h-3 w-3 transition-transform ${isToolsOpen ? 'rotate-180' : ''}`} />
                             </button>
-                            <button onClick={() => onGeneratePacingAnalysis()} disabled={isGeneratingPacingAnalysis} className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-md disabled:opacity-50 whitespace-nowrap" style={{ backgroundColor: settings.toolbarButtonBg, color: settings.toolbarText }}>
-                                {isGeneratingPacingAnalysis ? <SpinnerIcon className="h-4 w-4" /> : <SparklesIconOutline className="h-4 w-4" />}Analyze Pacing
+                            
+                            {isToolsOpen && (
+                                <div className="absolute top-full left-0 mt-2 w-56 rounded-xl shadow-2xl border border-white/10 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200" style={{ backgroundColor: settings.dropdownBg || settings.toolbarBg }}>
+                                    <button 
+                                        onClick={() => { onToggleLinkPanel(); setIsToolsOpen(false); }}
+                                        className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors"
+                                        style={{ color: settings.toolbarText }}
+                                    >
+                                        <LinkIcon className="h-4 w-4 opacity-70" />
+                                        {isLinkPanelOpen ? 'Hide Character Linker' : 'Link Characters'}
+                                    </button>
+                                    <button 
+                                        onClick={() => { onGeneratePacingAnalysis(); setIsToolsOpen(false); }}
+                                        disabled={isGeneratingPacingAnalysis}
+                                        className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors disabled:opacity-30"
+                                        style={{ color: settings.toolbarText }}
+                                    >
+                                        {isGeneratingPacingAnalysis ? <SpinnerIcon className="h-4 w-4" /> : <SparklesIconOutline className="h-4 w-4 opacity-70" />}
+                                        Analyze Pacing
+                                    </button>
+                                    <div className="h-px bg-white/10 mx-2"></div>
+                                    <button 
+                                        onClick={() => { dispatch({ type: 'UPDATE_ASSEMBLY_VIEW_STATE', payload: { isFocusMode: true } }); setIsToolsOpen(false); }}
+                                        className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors"
+                                        style={{ color: settings.toolbarText }}
+                                    >
+                                        <FocusIcon className="h-4 w-4 opacity-70" />
+                                        Enter Focus Mode
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Export & Data Dropdown */}
+                        <div className="relative" ref={exportRef}>
+                            <button 
+                                onClick={() => setIsExportOpen(!isExportOpen)}
+                                className={`flex items-center gap-2 text-xs font-bold uppercase tracking-wider px-3 py-2 rounded-lg transition-all ${isExportOpen ? 'opacity-100' : 'opacity-60 hover:opacity-100'}`}
+                                style={{ backgroundColor: settings.toolbarButtonBg, color: settings.toolbarText }}
+                            >
+                                <DownloadIcon className="h-3.5 w-3.5" />
+                                Project
+                                <ChevronDownIcon className={`h-3 w-3 transition-transform ${isExportOpen ? 'rotate-180' : ''}`} />
                             </button>
-                            </>
-                        )}
+                            
+                            {isExportOpen && (
+                                <div className="absolute top-full left-0 mt-2 w-64 rounded-xl shadow-2xl border border-white/10 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200" style={{ backgroundColor: settings.dropdownBg || settings.toolbarBg }}>
+                                    <button 
+                                        onClick={() => { setIsExportModalOpen(true); setIsExportOpen(false); }}
+                                        className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors"
+                                        style={{ color: settings.toolbarText }}
+                                    >
+                                        <ViewGridIcon className="h-4 w-4 opacity-70" />
+                                        Storyboard Collage
+                                    </button>
+                                    <button 
+                                        onClick={async () => {
+                                            setIsExportOpen(false);
+                                            const zip = new JSZip();
+                                            const md = exportChaptersToMarkdown(chapters);
+                                            const csv = generateSpreadsheetCSV(chapters);
+                                            zip.file("manuscript.md", md);
+                                            zip.file("story_architecture.csv", csv);
+                                            const content = await zip.generateAsync({ type: "blob" });
+                                            const url = URL.createObjectURL(content);
+                                            const a = document.createElement('a');
+                                            a.href = url;
+                                            a.download = `novel-export-${new Date().getTime()}.zip`;
+                                            a.click();
+                                            URL.revokeObjectURL(url);
+                                        }}
+                                        className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors"
+                                        style={{ color: settings.toolbarText }}
+                                    >
+                                        <SaveIcon className="h-4 w-4 opacity-70" />
+                                        Export MD + Sheet (ZIP)
+                                    </button>
+                                    <div className="h-px bg-white/10 mx-2"></div>
+                                    <button 
+                                        onClick={() => {
+                                            setIsExportOpen(false);
+                                            const input = document.createElement('input');
+                                            input.type = 'file';
+                                            input.accept = '.md,.txt';
+                                            input.onchange = (e) => {
+                                                const file = (e.target as HTMLInputElement).files?.[0];
+                                                if (file) {
+                                                    const reader = new FileReader();
+                                                    reader.onload = (re) => {
+                                                        const content = re.target?.result as string;
+                                                        const imported = importChaptersFromMarkdown(content, chapters);
+                                                        dialog.confirm(`This will import ${imported.length} chapters and update existing ones. Continue?`, "Import Chapters").then(confirmed => {
+                                                            if (confirmed) {
+                                                                onSetChapters(imported);
+                                                                setIsDirty(true);
+                                                            }
+                                                        });
+                                                    };
+                                                    reader.readAsText(file);
+                                                }
+                                            };
+                                            input.click();
+                                        }}
+                                        className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors"
+                                        style={{ color: settings.toolbarText }}
+                                    >
+                                        <ImportIcon className="h-4 w-4 opacity-70" />
+                                        Import Markdown
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </div>
                         
-                        <div className="w-px h-6 bg-gray-600 opacity-20 mx-2 hidden md:block"></div>
-                        
-                        <div className="flex items-center gap-2">
-                            <label className="text-[10px] font-bold uppercase tracking-widest opacity-40 mr-1" style={{ color: settings.toolbarText }}>Zoom</label>
-                            <div className="flex p-0.5 rounded-lg" style={{ backgroundColor: shadeColor(settings.toolbarBg || '#1f2937', isDarkMode ? -15 : 15) }}>
+                    <div className="flex items-center gap-4">
+                        {/* Zoom Control Group */}
+                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-black/20 border border-white/5">
+                            <label className="text-[9px] font-black uppercase tracking-widest opacity-40 mr-1" style={{ color: settings.toolbarText }}>Scale</label>
+                            <div className="flex gap-1">
                                 {[0, 1, 2, 3].map(level => (
                                     <button
                                         key={level}
                                         onClick={() => onZoomChange(level)}
-                                        className={`w-7 h-7 rounded-md flex items-center justify-center text-xs font-bold transition-all ${zoomLevel === level ? 'shadow-sm scale-105' : 'opacity-40 hover:opacity-100'}`}
+                                        className={`w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-black transition-all ${zoomLevel === level ? 'shadow-md scale-110' : 'opacity-30 hover:opacity-100'}`}
                                         style={{ 
                                             backgroundColor: zoomLevel === level ? settings.accentColor : 'transparent',
                                             color: zoomLevel === level ? 'white' : settings.toolbarText
@@ -1591,128 +1758,18 @@ export const ChaptersPanel: React.FC<ChaptersPanelProps> = ({
                             </div>
                         </div>
 
-                        <div className="w-px h-6 bg-gray-600 opacity-20 mx-2 hidden md:block"></div>
-
-                        <div className="flex items-center gap-1">
-                            <button 
-                                onClick={onToggleContinuousView} 
-                                className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-md transition-all whitespace-nowrap" 
-                                style={{ 
-                                    backgroundColor: isContinuousView ? settings.accentColor : settings.toolbarButtonBg, 
-                                    color: isContinuousView ? '#FFFFFF' : settings.toolbarText 
-                                }}
-                                title="Switch between Chapter Tiles and Continuous Focus View"
-                            >
-                                <FocusIcon className="h-4 w-4" />
-                                {isContinuousView ? 'Tile View' : 'Focus View'}
-                            </button>
-                            {!isContinuousView && (
-                                <button 
-                                    onClick={() => dispatch({ type: 'UPDATE_ASSEMBLY_VIEW_STATE', payload: { isFocusMode: true } })} 
-                                    className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-md transition-all whitespace-nowrap" 
-                                    style={{ 
-                                        backgroundColor: settings.toolbarButtonBg, 
-                                        color: settings.toolbarText 
-                                    }}
-                                    title="Enter Focus Mode to maximize screen space"
-                                >
-                                    <FocusIcon className="h-4 w-4" />
-                                    Focus Mode
-                                </button>
-                            )}
-                            <button 
-                                onClick={onToggleSpreadsheetView} 
-                                className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-md transition-all whitespace-nowrap" 
-                                style={{ 
-                                    backgroundColor: isSpreadsheetView ? settings.accentColor : settings.toolbarButtonBg, 
-                                    color: isSpreadsheetView ? '#FFFFFF' : settings.toolbarText 
-                                }}
-                                title="Story Architecture Spreadsheet View"
-                            >
-                                <TableIcon className="h-4 w-4" />
-                                Spreadsheet
-                            </button>
-                            <button 
-                                onClick={() => setIsExportModalOpen(true)} 
-                                disabled={isSyncing}
-                                className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-md transition-all whitespace-nowrap" 
-                                style={{ backgroundColor: settings.toolbarButtonBg, color: settings.toolbarText }}
-                                title="Export all chapter scene images as a storyboard collage (PNG)"
-                            >
-                                {isSyncing ? <SpinnerIcon className="h-4 w-4" /> : <ViewGridIcon className="h-4 w-4" />}
-                                Storyboard Collage
-                            </button>
-                            <button 
-                                onClick={async () => {
-                                    const zip = new JSZip();
-                                    const md = exportChaptersToMarkdown(chapters);
-                                    const csv = generateSpreadsheetCSV(chapters);
-                                    
-                                    zip.file("manuscript.md", md);
-                                    zip.file("story_architecture.csv", csv);
-                                    
-                                    const content = await zip.generateAsync({ type: "blob" });
-                                    const url = URL.createObjectURL(content);
-                                    const a = document.createElement('a');
-                                    a.href = url;
-                                    a.download = `novel-export-${new Date().getTime()}.zip`;
-                                    a.click();
-                                    URL.revokeObjectURL(url);
-                                }} 
-                                className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-md transition-all whitespace-nowrap" 
-                                style={{ backgroundColor: settings.toolbarButtonBg, color: settings.toolbarText }}
-                                title="Export all chapters to Markdown and Spreadsheet (ZIP)"
-                            >
-                                <SaveIcon className="h-4 w-4" />
-                                Export MD+Sheet
-                            </button>
-                            <button 
-                                onClick={() => {
-                                    const input = document.createElement('input');
-                                    input.type = 'file';
-                                    input.accept = '.md,.txt';
-                                    input.onchange = (e) => {
-                                        const file = (e.target as HTMLInputElement).files?.[0];
-                                        if (file) {
-                                            const reader = new FileReader();
-                                            reader.onload = (re) => {
-                                                const content = re.target?.result as string;
-                                                const imported = importChaptersFromMarkdown(content, chapters);
-                                                dialog.confirm(`This will import ${imported.length} chapters and update existing ones. Continue?`, "Import Chapters").then(confirmed => {
-                                                    if (confirmed) {
-                                                        onSetChapters(imported);
-                                                        setIsDirty(true);
-                                                    }
-                                                });
-                                            };
-                                            reader.readAsText(file);
-                                        }
-                                    };
-                                    input.click();
-                                }} 
-                                className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-md transition-all whitespace-nowrap" 
-                                style={{ backgroundColor: settings.toolbarButtonBg, color: settings.toolbarText }}
-                                title="Import and map chapters from a Markdown file"
-                            >
-                                <ImportIcon className="h-4 w-4" />
-                                Import MD
-                            </button>
-                        </div>
-                    
-                    {isDirty && 
-                        <div className="flex items-center gap-3 animate-in fade-in slide-in-from-right-4 duration-300">
-                            <span className="text-xs font-bold uppercase tracking-tighter opacity-50" style={{ color: settings.toolbarText }}>Sort Pending</span>
+                        {isDirty && 
                             <button 
                                 onClick={() => handleCommitChanges()} 
                                 disabled={isSyncing}
-                                className={`flex items-center gap-2 text-xs font-bold px-4 py-1.5 rounded-full shadow-lg transition-all ${isSyncing ? 'opacity-50' : 'hover:scale-105 active:scale-95 pulse-subtle'}`}
+                                className={`flex items-center gap-2 text-xs font-bold px-5 py-2 rounded-full shadow-lg transition-all ${isSyncing ? 'opacity-50' : 'hover:scale-105 active:scale-95 pulse-subtle'}`}
                                 style={{ backgroundColor: settings.successColor, color: getContrastColor(settings.successColor) }}
                             >
-                                {isSyncing ? <SpinnerIcon className="h-3 w-3" /> : <CheckCircleIcon className="h-3 w-3" />}
+                                {isSyncing ? <SpinnerIcon className="h-3.5 w-3.5" /> : <CheckCircleIcon className="h-3.5 w-3.5" />}
                                 Commit Changes
                             </button>
-                        </div>
-                    }
+                        }
+                    </div>
                 </div>
             )}
             

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useDialog } from '../../common/DialogProvider';
 import type { EditorSettings, IChapter, SearchResult } from '../../../types';
 import { generateId } from '../../../utils/common';
@@ -11,7 +11,7 @@ interface FindReplaceModalProps {
     activeChapterId: string;
     onNavigateMatch: (result: SearchResult) => void;
     onReplace: (result: SearchResult, newText: string) => void;
-    onReplaceAll: (find: string, replace: string, scope: 'chapter' | 'manuscript', caseSensitive: boolean) => void;
+    onReplaceAll: (find: string, replace: string, scope: 'chapter' | 'manuscript') => void;
     settings: EditorSettings;
 }
 
@@ -49,18 +49,10 @@ export const FindReplaceModal: React.FC<FindReplaceModalProps> = ({
             const escapedFind = findText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             const regex = new RegExp(escapedFind, flags);
 
-            let chaptersToSearch: IChapter[] = [];
-            
-            if (scope === 'chapter') {
-                const active = chapters.find(c => c.id === activeChapterId);
-                if (active) chaptersToSearch = [active];
-            } else {
-                // Manuscript mode: Prioritize active chapter, then others in order
-                const sortedChapters = [...chapters].sort((a,b) => a.chapterNumber - b.chapterNumber);
-                const active = sortedChapters.filter(c => c.id === activeChapterId);
-                const others = sortedChapters.filter(c => c.id !== activeChapterId);
-                chaptersToSearch = [...active, ...others];
-            }
+            // Get all chapters and identify the active one
+            const chaptersToSearch = scope === 'chapter' 
+                ? chapters.filter(c => c.id === activeChapterId)
+                : [...chapters].sort((a,b) => a.chapterNumber - b.chapterNumber);
 
             chaptersToSearch.forEach(chapter => {
                 // Parse HTML to text for indexing
@@ -69,7 +61,6 @@ export const FindReplaceModal: React.FC<FindReplaceModalProps> = ({
                 const textContent = tempDiv.innerText; // Use innerText for visual indices
                 
                 let match;
-                regex.lastIndex = 0; // Reset regex index for each chapter
                 while ((match = regex.exec(textContent)) !== null) {
                     const index = match.index;
                     const length = match[0].length;
@@ -92,12 +83,27 @@ export const FindReplaceModal: React.FC<FindReplaceModalProps> = ({
                 }
             });
 
+            // GROUPING: Sort results to put active chapter first
+            if (scope === 'manuscript') {
+                newResults.sort((a, b) => {
+                    if (a.chapterId === activeChapterId && b.chapterId !== activeChapterId) return -1;
+                    if (a.chapterId !== activeChapterId && b.chapterId === activeChapterId) return 1;
+                    // Otherwise keep chapter order (they are already mostly in order from the loop, but sort just in case)
+                    const chA = chapters.find(c => c.id === a.chapterId);
+                    const chB = chapters.find(c => c.id === b.chapterId);
+                    if (chA && chB && chA.id !== chB.id) {
+                        return chA.chapterNumber - chB.chapterNumber;
+                    }
+                    return a.index - b.index;
+                });
+            }
+
             setResults(newResults);
             if (newResults.length > 0) {
-                // Auto-select first if none selected or if previous selection no longer exists
-                if (!selectedResultId || !newResults.some(r => r.id === selectedResultId)) {
+                // Auto-select first if none selected
+                if (!selectedResultId) {
                     setSelectedResultId(newResults[0].id);
-                    // Only navigate if it's the first time searching or explicitly triggered
+                    // Don't auto-navigate on the first search to avoid jarring jumps
                 }
             } else {
                 setSelectedResultId(null);
@@ -116,7 +122,7 @@ export const FindReplaceModal: React.FC<FindReplaceModalProps> = ({
             else setResults([]);
         }, 600);
         return () => clearTimeout(timer);
-    }, [findText, scope, caseSensitive]);
+    }, [findText, scope, caseSensitive, activeChapterId]);
 
     const handleResultClick = (result: SearchResult) => {
         setSelectedResultId(result.id);
@@ -128,16 +134,31 @@ export const FindReplaceModal: React.FC<FindReplaceModalProps> = ({
         if (currentResult) {
             onReplace(currentResult, replaceText);
             // Re-run search after short delay to update indices
-            setTimeout(performSearch, 150);
+            setTimeout(performSearch, 100);
         }
     };
 
     const handleReplaceAllClick = async () => {
         if(await dialog.confirm(`Replace all occurrences of "${findText}" with "${replaceText}" in ${scope === 'chapter' ? 'current chapter' : 'entire manuscript'}?`, "Replace All")){
-            onReplaceAll(findText, replaceText, scope, caseSensitive);
-            setTimeout(performSearch, 600);
+            onReplaceAll(findText, replaceText, scope);
+            setTimeout(performSearch, 500);
         }
     }
+
+    // Group results for UI display
+    const groupedResults = useMemo(() => {
+        const groups: { chapterId: string; chapterName: string; results: SearchResult[] }[] = [];
+        results.forEach(r => {
+            let group = groups.find(g => g.chapterId === r.chapterId);
+            if (!group) {
+                group = { chapterId: r.chapterId, chapterName: r.chapterName, results: [] };
+                groups.push(group);
+            }
+            group.results.push(r);
+        });
+        return groups;
+    }, [results]);
+
 
     // --- Drag Logic ---
     const handleMouseDown = (e: React.MouseEvent) => {
@@ -281,55 +302,43 @@ export const FindReplaceModal: React.FC<FindReplaceModalProps> = ({
             <div className="flex-grow overflow-y-auto min-h-[150px] border-t" style={{ borderColor: settings.toolbarInputBorderColor, backgroundColor: settings.toolbarBg }}>
                 <div className="p-2">
                     <div className="text-xs opacity-50 mb-2 px-2">{results.length} result{results.length !== 1 ? 's' : ''}</div>
-                    {(() => {
-                        const groupedResults: { [key: string]: SearchResult[] } = {};
-                        const chapterOrder: string[] = [];
-                        
-                        results.forEach(r => {
-                            if (!groupedResults[r.chapterId]) {
-                                groupedResults[r.chapterId] = [];
-                                chapterOrder.push(r.chapterId);
-                            }
-                            groupedResults[r.chapterId].push(r);
-                        });
-
-                        return chapterOrder.map(chapterId => {
-                            const chapterResults = groupedResults[chapterId];
-                            const firstResult = chapterResults[0];
-                            return (
-                                <div key={chapterId} className="mb-4">
-                                    <div className="px-2 py-1 text-[10px] uppercase tracking-widest font-bold opacity-40 border-b mb-2" style={{ borderColor: settings.toolbarInputBorderColor }}>
-                                        {firstResult.chapterName}
-                                    </div>
-                                    {chapterResults.map((result) => (
-                                        <div 
-                                            key={result.id}
-                                            onClick={() => handleResultClick(result)}
-                                            className={`p-2 rounded cursor-pointer mb-1 text-sm border border-transparent ${selectedResultId === result.id ? 'ring-1' : 'hover:bg-black/5'}`}
-                                            style={{ 
-                                                backgroundColor: selectedResultId === result.id ? settings.toolbarButtonBg : 'transparent',
-                                                ['--tw-ring-color' as any]: settings.accentColor
-                                            }}
-                                        >
-                                            <div className="flex justify-between items-start gap-2">
-                                                <div className="line-clamp-2 leading-snug opacity-90" dangerouslySetInnerHTML={{
-                                                    __html: result.context.replace(new RegExp(findText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), caseSensitive ? 'g' : 'gi'), (match) => 
-                                                        `<span style="background-color:${settings.accentColor}40; font-weight:bold; color:${settings.textColor}">${match}</span>`)
-                                                }} />
-                                                <button 
-                                                    onClick={(e) => { e.stopPropagation(); handleResultClick(result); }}
-                                                    className="px-2 py-0.5 text-[10px] rounded border border-transparent hover:border-current opacity-60 hover:opacity-100 transition-all whitespace-nowrap"
-                                                    style={{ borderColor: settings.toolbarInputBorderColor }}
-                                                >
-                                                    GO TO
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))}
+                    
+                    {groupedResults.map((group) => (
+                        <div key={group.chapterId} className="mb-4">
+                            {scope === 'manuscript' && (
+                                <div className="text-[10px] opacity-40 font-bold mb-2 px-2 uppercase tracking-widest border-b pb-1" style={{ borderColor: settings.toolbarInputBorderColor }}>
+                                    {group.chapterName} {group.chapterId === activeChapterId && "(Current)"}
                                 </div>
-                            );
-                        });
-                    })()}
+                            )}
+                            {group.results.map((result) => (
+                                <div 
+                                    key={result.id}
+                                    onClick={() => handleResultClick(result)}
+                                    className={`p-2 rounded cursor-pointer mb-1 text-sm border border-transparent ${selectedResultId === result.id ? 'ring-1' : 'hover:bg-black/5'}`}
+                                    style={{ 
+                                        backgroundColor: selectedResultId === result.id ? settings.toolbarButtonBg : 'transparent',
+                                        ['--tw-ring-color' as any]: settings.accentColor
+                                    }}
+                                >
+                                    <div className="flex justify-between items-start gap-2">
+                                        <div className="line-clamp-2 leading-snug opacity-90" dangerouslySetInnerHTML={{
+                                            __html: result.context.replace(new RegExp(findText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), (match) => 
+                                                `<span style="background-color:${settings.accentColor}40; font-weight:bold; color:${settings.textColor}">${match}</span>`
+                                            )
+                                        }} />
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); handleResultClick(result); }}
+                                            className="px-2 py-0.5 text-[10px] rounded border border-transparent hover:border-current opacity-60 hover:opacity-100 transition-all whitespace-nowrap"
+                                            style={{ borderColor: settings.toolbarInputBorderColor }}
+                                        >
+                                            GO TO
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ))}
+
                     {results.length === 0 && !isSearching && (
                         <div className="text-center p-8 text-xs opacity-50">No matches found.</div>
                     )}

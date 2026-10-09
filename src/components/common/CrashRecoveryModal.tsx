@@ -21,10 +21,13 @@ export const CrashRecoveryModal: React.FC<CrashRecoveryModalProps> = ({
 }) => {
     if (!isOpen) return null;
 
+    const textOnly = previewText.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').trim();
+    if (!textOnly) return null;
+
     const dateStr = new Date(timestamp).toLocaleString();
     
     // Clean preview text from HTML tags for better display
-    const cleanPreview = previewText.replace(/<[^>]*>/g, ' ').substring(0, 300) + '...';
+    const cleanPreview = textOnly.substring(0, 300) + (textOnly.length > 300 ? '...' : '');
 
     return (
         <AnimatePresence>

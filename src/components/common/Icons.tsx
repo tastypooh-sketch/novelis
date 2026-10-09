@@ -112,11 +112,26 @@ export const CogIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     </svg>
 );
 
-export const PageTransitionIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+export const PageScrollIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} {...props}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
     </svg>
 );
+
+export const PageFadeIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} {...props}>
+        {/* Dissolving background page */}
+        <path strokeLinecap="round" strokeLinejoin="round" strokeDasharray="2 2" d="M8 3.5h9a2 2 0 012 2v9.5" />
+        {/* Foreground page */}
+        <rect x="3.5" y="6.5" width="11" height="14" rx="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        {/* Internal dissolve lines */}
+        <path strokeLinecap="round" strokeLinejoin="round" strokeDasharray="1.5 2" d="M6.5 10.5h5M6.5 13.5h5M6.5 16.5h3" />
+        {/* Dissolve sparkle */}
+        <path strokeLinecap="round" strokeLinejoin="round" d="M18.5 7.5l.35 1 .95.35-.95.35-.35 1-.35-1-.95-.35.95-.35z" />
+    </svg>
+);
+
+export const PageTransitionIcon: React.FC<React.SVGProps<SVGSVGElement>> = PageScrollIcon;
 
 export const HistoryIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="h-5 w-5" {...props}>

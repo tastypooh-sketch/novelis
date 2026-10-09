@@ -116,13 +116,14 @@ ipcMain.handle('call-ai', async (event, params, headers) => {
         const { model: modelName, contents, config } = params;
 
         // Model mapping logic (keep in sync with server.ts)
-        const modelMap = {
-            'gemini-2.0-flash': 'gemini-3.5-flash',
-            'gemini-1.5-flash': 'gemini-3.5-flash',
-            'gemini-1.5-pro': 'gemini-3.1-pro-preview'
-        };
-
-        const mappedModel = modelMap[modelName] || 'gemini-3.5-flash';
+        let mappedModel = 'gemini-3.8-flash';
+        if (config?.responseModalities?.includes('AUDIO') || config?.speechConfig) {
+            mappedModel = 'gemini-3.8-flash-tts';
+        } else if (modelName === 'gemini-1.5-pro' || (typeof modelName === 'string' && modelName.includes('pro'))) {
+            mappedModel = 'gemini-3.1-pro-preview';
+        } else {
+            mappedModel = 'gemini-3.8-flash';
+        }
         
         const response = await genAI.models.generateContent({
             model: mappedModel,
@@ -162,6 +163,9 @@ ipcMain.on('window-close', async () => {
         if (isDirty) {
             mainWindow.webContents.send('request-close-confirmation');
         } else {
+            try {
+                await mainWindow.webContents.executeJavaScript(`localStorage.removeItem('novelis_recovery_state');`);
+            } catch (e) {}
             mainWindow.destroy();
         }
     }

@@ -89,44 +89,49 @@ export const SynopsisPanel: React.FC<SynopsisPanelProps> = ({ settings, synopsis
         <div className="w-full h-full flex flex-col p-4 gap-6" style={{ backgroundColor: `${settings.toolbarButtonBg}60`}}>
             {renderContextMenu()}
             {renderTaggingModal()}
-            <div className="flex-shrink-0 flex items-center justify-between gap-2">
+            <div className="flex-shrink-0 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                  <div className="flex items-center gap-3">
                     <DocumentTextIcon className="h-6 w-6" style={{ color: settings.accentColor }} />
                     <h2 className="text-xl font-bold" style={{ color: settings.textColor }}>Synopsis & Marketing</h2>
                  </div>
 
-                 <div className="flex items-center gap-4">
-                    <div className="flex bg-black/20 p-1 rounded-lg">
+                 <div className="flex items-center gap-3 flex-wrap">
+                    {/* View Mode Segmented Pills */}
+                    <div className="flex bg-black/20 p-1 rounded-xl border border-white/5">
                         <button 
                             onClick={() => setActiveTab('content')}
-                            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'content' ? 'opacity-100 shadow-sm shadow-black/20' : 'opacity-40 hover:opacity-60'}`}
+                            className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'content' ? 'shadow-lg' : 'opacity-40 hover:opacity-100'}`}
                             style={{ 
                                 backgroundColor: activeTab === 'content' ? settings.toolbarButtonBg : 'transparent',
                                 color: settings.textColor
                             }}
                         >
+                            <DocumentTextIcon className="w-3.5 h-3.5" />
                             Content
                         </button>
                         <button 
                             onClick={() => setActiveTab('chest')}
-                            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'chest' ? 'opacity-100 shadow-sm shadow-black/20' : 'opacity-40 hover:opacity-60'}`}
+                            className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'chest' ? 'shadow-lg' : 'opacity-40 hover:opacity-100'}`}
                             style={{ 
                                 backgroundColor: activeTab === 'chest' ? settings.toolbarButtonBg : 'transparent',
                                 color: settings.textColor
                             }}
                         >
-                            <ArchiveIcon className="w-4 h-4" />
-                            Locked Chest
+                            <ArchiveIcon className="w-3.5 h-3.5" />
+                            Chest
                         </button>
                     </div>
+
+                    <div className="w-px h-6 bg-gray-600 opacity-20 mx-1 hidden md:block"></div>
 
                     {!hasGeneratedAnything && !isGeneratingAnything && activeTab === 'content' && (
                         <button
                             onClick={handleGenerate}
-                            className="btn-nuanced-lg-primary px-6 py-2 opacity-100"
+                            className="px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2"
+                            style={{ backgroundColor: settings.accentColor, color: 'white' }}
                         >
-                            <SparklesIconOutline className="h-4 w-4 mr-2" />
-                            Generate Professional Suite
+                            <SparklesIconOutline className="h-3.5 h-3.5" />
+                            Professional Suite
                         </button>
                     )}
                  </div>

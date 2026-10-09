@@ -1009,6 +1009,17 @@ export const CharactersPanel: React.FC<CharactersPanelProps> = ({
     const [overGroup, setOverGroup] = useState<number | null>(null);
     const [interviewCharacter, setInterviewCharacter] = useState<ICharacter | null>(null);
     const [activeTab, setActiveTab] = useState<'content' | 'chest'>('content');
+    const [isToolsOpen, setIsToolsOpen] = useState(false);
+    const toolsRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (toolsRef.current && !toolsRef.current.contains(e.target as Node)) setIsToolsOpen(false);
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
     
@@ -1276,88 +1287,104 @@ export const CharactersPanel: React.FC<CharactersPanelProps> = ({
             {renderContextMenu()}
             {renderTaggingModal()}
             {!isLinkPanel && !isFocusMode && (
-                <div className="p-4 border-b flex flex-wrap justify-between items-center z-30 shadow-sm gap-4" style={{ backgroundColor: settings.toolbarBg, borderColor: settings.toolbarInputBorderColor }}>
-                    <div className="flex items-center gap-6">
-                        <div className="flex items-center gap-2">
-                            <label className="text-[10px] font-bold uppercase tracking-widest opacity-40 mr-1" style={{ color: settings.toolbarText }}>Zoom</label>
-                            <div className="flex p-0.5 rounded-lg" style={{ backgroundColor: shadeColor(settings.toolbarBg || '#1f2937', isDarkMode ? -15 : 15) }}>
-                                {[0, 1, 2, 3].map(level => (
-                                    <button
-                                        key={level}
-                                        onClick={() => onZoomChange(level)}
-                                        className={`w-7 h-7 rounded-md flex items-center justify-center text-xs font-bold transition-all ${zoomLevel === level ? 'shadow-sm scale-105' : 'opacity-40 hover:opacity-100'}`}
-                                        style={{ 
-                                            backgroundColor: zoomLevel === level ? settings.accentColor : 'transparent',
-                                            color: zoomLevel === level ? 'white' : settings.toolbarText
-                                        }}
-                                    >
-                                        {level + 1}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className="flex bg-black/20 p-1 rounded-lg">
+                <div className="p-3 border-b flex flex-col md:flex-row justify-between items-start md:items-center z-40 shadow-sm gap-4 transition-all" style={{ backgroundColor: settings.toolbarBg, borderColor: settings.toolbarInputBorderColor }}>
+                    <div className="flex items-center gap-3 flex-wrap">
+                        {/* View Mode Segmented Pills */}
+                        <div className="flex bg-black/20 p-1 rounded-xl border border-white/5">
                             <button 
                                 onClick={() => setActiveTab('content')}
-                                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'content' ? 'shadow-sm' : 'opacity-50'}`}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'content' ? 'shadow-lg' : 'opacity-40 hover:opacity-100'}`}
                                 style={{ 
                                     backgroundColor: activeTab === 'content' ? settings.toolbarButtonBg : 'transparent',
                                     color: settings.textColor
                                 }}
                             >
+                                <UserCircleIcon className="w-3.5 h-3.5" />
                                 Characters
                             </button>
                             <button 
                                 onClick={() => setActiveTab('chest')}
-                                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'chest' ? 'shadow-sm' : 'opacity-50'}`}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'chest' ? 'shadow-lg' : 'opacity-40 hover:opacity-100'}`}
                                 style={{ 
                                     backgroundColor: activeTab === 'chest' ? settings.toolbarButtonBg : 'transparent',
                                     color: settings.textColor
                                 }}
                             >
-                                <ArchiveIcon className="w-4 h-4" />
-                                Locked Chest
+                                <ArchiveIcon className="w-3.5 h-3.5" />
+                                Chest
                             </button>
                         </div>
-                    </div>
-                    {!isLinkPanel && activeTab === 'content' && !expandedCharacterId && (
-                        <button 
-                            onClick={() => dispatch({ type: 'UPDATE_ASSEMBLY_VIEW_STATE', payload: { isFocusMode: true } })} 
-                            className="flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded-md transition-all whitespace-nowrap shadow-sm" 
-                            style={{ 
-                                backgroundColor: settings.toolbarButtonBg, 
-                                color: settings.toolbarText 
-                            }}
-                            title="Enter Focus Mode to maximize screen space"
-                        >
-                            <FocusIcon className="h-4 w-4" />
-                            Focus Mode
-                        </button>
-                    )}
-                    
-                        <button
-                            onClick={() => {
-                                const name = prompt("Enter category name:");
-                                if (name) dispatch({ type: 'ADD_CHARACTER_GROUP', payload: name });
-                            }}
-                            className="px-3 py-1.5 rounded-md text-xs font-bold flex items-center gap-2 shadow-sm transition-transform active:scale-95"
-                            style={{ backgroundColor: settings.toolbarButtonBg, color: settings.toolbarText }}
-                        >
-                            <PlusIcon className="h-4 w-4" />
-                            Add Category
-                        </button>
 
-                        <button 
-                            onClick={() => setIsExportModalOpen(true)} 
-                            disabled={isSyncing}
-                            className="flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded-md transition-all whitespace-nowrap shadow-sm" 
-                            style={{ backgroundColor: settings.toolbarButtonBg, color: settings.toolbarText }}
-                            title="Export all character headshots as a collage (PNG)"
-                        >
-                            {isSyncing ? <SpinnerIcon className="h-4 w-4 animate-spin" /> : <ViewGridIcon className="h-4 w-4" />}
-                            Headshot Collage
-                        </button>
+                        <div className="w-px h-6 bg-gray-600 opacity-20 mx-1 hidden md:block"></div>
+
+                        {/* Tools Dropdown */}
+                        <div className="relative" ref={toolsRef}>
+                            <button 
+                                onClick={() => setIsToolsOpen(!isToolsOpen)}
+                                className={`flex items-center gap-2 text-xs font-bold uppercase tracking-wider px-3 py-2 rounded-lg transition-all ${isToolsOpen ? 'opacity-100' : 'opacity-60 hover:opacity-100'}`}
+                                style={{ backgroundColor: settings.toolbarButtonBg, color: settings.toolbarText }}
+                            >
+                                <PlusIcon className="h-3.5 w-3.5" />
+                                Actions
+                                <ChevronDownIcon className={`h-3 w-3 transition-transform ${isToolsOpen ? 'rotate-180' : ''}`} />
+                            </button>
+                            
+                            {isToolsOpen && (
+                                <div className="absolute top-full left-0 mt-2 w-56 rounded-xl shadow-2xl border border-white/10 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200" style={{ backgroundColor: settings.dropdownBg || settings.toolbarBg }}>
+                                    <button 
+                                        onClick={() => {
+                                            const name = prompt("Enter category name:");
+                                            if (name) dispatch({ type: 'ADD_CHARACTER_GROUP', payload: name });
+                                            setIsToolsOpen(false);
+                                        }}
+                                        className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors"
+                                        style={{ color: settings.toolbarText }}
+                                    >
+                                        <PlusIcon className="h-4 w-4 opacity-70" />
+                                        Add Category
+                                    </button>
+                                    <button 
+                                        onClick={() => { setIsExportModalOpen(true); setIsToolsOpen(false); }}
+                                        disabled={isSyncing}
+                                        className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors disabled:opacity-30"
+                                        style={{ color: settings.toolbarText }}
+                                    >
+                                        {isSyncing ? <SpinnerIcon className="h-4 w-4 animate-spin" /> : <ViewGridIcon className="h-4 w-4 opacity-70" />}
+                                        Headshot Collage
+                                    </button>
+                                    <div className="h-px bg-white/10 mx-2"></div>
+                                    <button 
+                                        onClick={() => { dispatch({ type: 'UPDATE_ASSEMBLY_VIEW_STATE', payload: { isFocusMode: true } }); setIsToolsOpen(false); }}
+                                        className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors"
+                                        style={{ color: settings.toolbarText }}
+                                    >
+                                        <FocusIcon className="h-4 w-4 opacity-70" />
+                                        Enter Focus Mode
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                        
+                    {/* Zoom Control Group */}
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-black/20 border border-white/5">
+                        <label className="text-[9px] font-black uppercase tracking-widest opacity-40 mr-1" style={{ color: settings.toolbarText }}>Scale</label>
+                        <div className="flex gap-1">
+                            {[0, 1, 2, 3].map(level => (
+                                <button
+                                    key={level}
+                                    onClick={() => onZoomChange(level)}
+                                    className={`w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-black transition-all ${zoomLevel === level ? 'shadow-md scale-110' : 'opacity-30 hover:opacity-100'}`}
+                                    style={{ 
+                                        backgroundColor: zoomLevel === level ? settings.accentColor : 'transparent',
+                                        color: zoomLevel === level ? 'white' : settings.toolbarText
+                                    }}
+                                >
+                                    {level + 1}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                 </div>
             )}
             

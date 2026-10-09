@@ -58,7 +58,7 @@ export const runNarrativeAudit = async (
 
   try {
     const response = await getAI(apiKey).models.generateContent({
-      model: "gemini-1.5-pro",
+      model: "gemini-3.1-pro-preview",
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       config: {
         responseMimeType: "application/json",

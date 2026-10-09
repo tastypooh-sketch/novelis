@@ -369,88 +369,86 @@ export const SnippetsPanel: React.FC<SnippetsPanelProps> = ({ settings }) => {
             {renderContextMenu()}
             {renderTaggingModal()}
             
-            <div className="flex-shrink-0 flex justify-between items-center mb-2">
-                <div className="flex gap-2 items-center">
-                    <div className="flex bg-black/20 p-1 rounded-lg">
+            <div className="flex-shrink-0 p-3 border-b flex flex-col md:flex-row justify-between items-start md:items-center z-40 shadow-sm gap-4 transition-all mb-4" style={{ backgroundColor: settings.toolbarBg, borderColor: settings.toolbarInputBorderColor }}>
+                <div className="flex items-center gap-3 flex-wrap">
+                    {/* View Mode Segmented Pills */}
+                    <div className="flex bg-black/20 p-1 rounded-xl border border-white/5">
                         <button 
                             onClick={() => setActiveTab('dropbox')}
-                            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'dropbox' ? 'shadow-sm shadow-black/20' : 'opacity-50'}`}
+                            className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'dropbox' ? 'shadow-lg' : 'opacity-40 hover:opacity-100'}`}
                             style={{ 
                                 backgroundColor: activeTab === 'dropbox' ? settings.toolbarButtonBg : 'transparent',
                                 color: settings.textColor
                             }}
                         >
+                            <ClipboardIcon className="w-3.5 h-3.5" />
                             Dropbox
                         </button>
                         <button 
                             onClick={() => setActiveTab('chest')}
-                            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'chest' ? 'shadow-sm shadow-black/20' : 'opacity-50'}`}
+                            className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'chest' ? 'shadow-lg' : 'opacity-40 hover:opacity-100'}`}
                             style={{ 
                                 backgroundColor: activeTab === 'chest' ? settings.toolbarButtonBg : 'transparent',
                                 color: settings.textColor
                             }}
                         >
-                            <ArchiveIcon className="w-4 h-4" />
-                            Locked Chest
+                            <ArchiveIcon className="w-3.5 h-3.5" />
+                            Chest
                         </button>
                     </div>
-                    
-                    {activeTab === 'dropbox' && (
-                        <>
-                        <button
-                            onClick={() => dispatch({ type: 'UPDATE_ASSEMBLY_VIEW_STATE', payload: { useSnippetTypeColors: !assemblyState.useSnippetTypeColors } })}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all border border-white/5 active:scale-95`}
-                            style={{ 
-                                backgroundColor: assemblyState.useSnippetTypeColors ? settings.accentColor : `${settings.toolbarButtonBg}80`,
-                                color: assemblyState.useSnippetTypeColors ? 'var(--app-text)' : settings.textColor,
-                                opacity: assemblyState.useSnippetTypeColors ? 1 : 0.6
-                            }}
-                            title="Toggle Snippet Type Classification Colors"
-                        >
-                            <div className="flex -space-x-1">
-                                <div className="w-2.5 h-2.5 rounded-full bg-blue-400" />
-                                <div className="w-2.5 h-2.5 rounded-full bg-purple-400" />
-                                <div className="w-2.5 h-2.5 rounded-full bg-green-400" />
-                            </div>
-                            {assemblyState.useSnippetTypeColors ? 'Type Colors: ON' : 'Type Colors: OFF'}
-                            {assemblyState.useSnippetTypeColors && <CheckCircleIcon className="h-3 w-3" />}
-                        </button>
 
-                        <button
-                            onClick={() => dispatch({ type: 'UPDATE_ASSEMBLY_VIEW_STATE', payload: { isSnippetSpreadsheetView: !assemblyState.isSnippetSpreadsheetView } })}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all border border-white/5 active:scale-95`}
-                            style={{ 
-                                backgroundColor: assemblyState.isSnippetSpreadsheetView ? settings.accentColor : `${settings.toolbarButtonBg}80`,
-                                color: assemblyState.isSnippetSpreadsheetView ? 'var(--app-text)' : settings.textColor,
-                                opacity: assemblyState.isSnippetSpreadsheetView ? 1 : 0.6
-                            }}
-                            title="Toggle Spreadsheet View"
-                        >
-                            {assemblyState.isSnippetSpreadsheetView ? <ViewGridIcon className="h-4 w-4" /> : <TableIcon className="h-4 w-4" />}
-                            {assemblyState.isSnippetSpreadsheetView ? 'Grid View' : 'Spreadsheet View'}
-                        </button>
-                        </>
+                    <div className="w-px h-6 bg-gray-600 opacity-20 mx-1 hidden md:block"></div>
+
+                    {activeTab === 'dropbox' && (
+                        <div className="flex items-center gap-2">
+                             <button
+                                onClick={() => dispatch({ type: 'UPDATE_ASSEMBLY_VIEW_STATE', payload: { isSnippetSpreadsheetView: !assemblyState.isSnippetSpreadsheetView } })}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 border border-white/5 active:scale-95`}
+                                style={{ 
+                                    backgroundColor: assemblyState.isSnippetSpreadsheetView ? settings.accentColor : settings.toolbarButtonBg,
+                                    color: assemblyState.isSnippetSpreadsheetView ? 'white' : settings.textColor,
+                                    opacity: 1
+                                }}
+                            >
+                                {assemblyState.isSnippetSpreadsheetView ? <ViewGridIcon className="h-3.5 w-3.5" /> : <TableIcon className="h-3.5 w-3.5" />}
+                                {assemblyState.isSnippetSpreadsheetView ? 'Grid' : 'Sheet'}
+                            </button>
+
+                            <button
+                                onClick={() => dispatch({ type: 'UPDATE_ASSEMBLY_VIEW_STATE', payload: { useSnippetTypeColors: !assemblyState.useSnippetTypeColors } })}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 border border-white/5 active:scale-95`}
+                                style={{ 
+                                    backgroundColor: assemblyState.useSnippetTypeColors ? settings.accentColor : settings.toolbarButtonBg,
+                                    color: assemblyState.useSnippetTypeColors ? 'white' : settings.textColor,
+                                    opacity: 1
+                                }}
+                            >
+                                <SparklesIconOutline className="h-3.5 w-3.5" />
+                                {assemblyState.useSnippetTypeColors ? 'Colors On' : 'Colors Off'}
+                            </button>
+                        </div>
                     )}
                 </div>
 
                 {activeTab === 'dropbox' && (
-                    <div className="flex items-center gap-3">
-                        <label className="flex items-center cursor-pointer text-sm opacity-70 hover:opacity-100 transition-opacity" style={{ color: settings.textColor }}>
+                    <div className="flex items-center gap-4">
+                        <label className="flex items-center cursor-pointer text-xs font-bold uppercase tracking-wider opacity-60 hover:opacity-100 transition-opacity" style={{ color: settings.textColor }}>
                             <input 
                                 type="checkbox" 
                                 checked={hideUsed} 
                                 onChange={() => setHideUsed(p => !p)} 
-                                className="mr-2 h-4 w-4 rounded"
-                                style={{color: settings.accentColor}}
+                                className="mr-2 h-4 w-4 rounded border-white/10"
+                                style={{backgroundColor: settings.toolbarButtonBg, color: settings.accentColor}}
                             />
                             Hide Used
                         </label>
                         <button
                             onClick={() => dispatch({ type: 'UPDATE_ASSEMBLY_VIEW_STATE', payload: { isSnippetDropboxCollapsed: !assemblyState.isSnippetDropboxCollapsed } })}
-                            className="btn-nuanced"
-                            title={assemblyState.isSnippetDropboxCollapsed ? "Show Dropbox" : "Hide Dropbox"}
+                            className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg transition-all border border-white/5"
+                            style={{ backgroundColor: settings.toolbarButtonBg, color: settings.textColor }}
                         >
-                            <ChevronDownIcon className={`w-5 h-5 transition-transform duration-300 ${assemblyState.isSnippetDropboxCollapsed ? '' : 'rotate-180'}`} />
+                            <ChevronDownIcon className={`w-4 h-4 transition-transform duration-300 ${assemblyState.isSnippetDropboxCollapsed ? '' : 'rotate-180'}`} />
+                            {assemblyState.isSnippetDropboxCollapsed ? 'Show Dropbox' : 'Hide Dropbox'}
                         </button>
                     </div>
                 )}

@@ -454,64 +454,76 @@ export const Manuscript: React.FC<ManuscriptProps> = ({
 
     const handleFindReplaceUpdate = (result: SearchResult, newText: string) => {
         if (result.chapterId !== activeChapterId) { 
-            // Replace in state directly if not active chapter
+            // Update state directly for non-active chapters
             const chapter = chapters.find(c => c.id === result.chapterId);
             if (chapter) {
                 const tempDiv = document.createElement('div');
                 tempDiv.innerHTML = chapter.content;
+                
                 const walker = document.createTreeWalker(tempDiv, NodeFilter.SHOW_TEXT, null);
-                let currentIndex = 0;
+                let currentIndex = 0; 
                 let node: Node | null = null;
+                let replaced = false;
+
                 while(node = walker.nextNode()) {
                     const nodeLen = node.textContent?.length || 0;
                     if (currentIndex + nodeLen > result.index) {
                         const startOffset = result.index - currentIndex;
                         const text = node.textContent || '';
                         node.textContent = text.substring(0, startOffset) + newText + text.substring(startOffset + result.length);
-                        dispatch({ type: 'UPDATE_CHAPTER', payload: { id: chapter.id, updates: { content: tempDiv.innerHTML } } });
-                        return;
+                        replaced = true;
+                        break;
                     }
                     currentIndex += nodeLen;
+                }
+
+                if (replaced) {
+                    dispatch({ type: 'UPDATE_CHAPTER', payload: { id: result.chapterId, updates: { content: tempDiv.innerHTML } } });
+                    setNotification("Match replaced in manuscript state.");
+                    setTimeout(() => setNotification(null), 2000);
                 }
             }
             return; 
         }
+        
+        // For active chapter, use editor commands to preserve history
+        highlightTextInEditor(result.index, result.length);
         document.execCommand('insertText', false, newText);
     };
 
-    const handleGlobalReplace = (find: string, replace: string, scope: 'chapter' | 'manuscript', caseSensitive: boolean) => {
+    const handleGlobalReplace = (find: string, replace: string, scope: 'chapter' | 'manuscript') => {
+        // To be safe with HTML tags, we should only replace text nodes
         const escapedFind = find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const regex = new RegExp(escapedFind, caseSensitive ? 'g' : 'gi');
-        
-        const targetChapters = scope === 'chapter' ? [activeChapter] : chapters;
-        let totalReplaced = 0;
+        const regex = new RegExp(escapedFind, 'g');
 
-        targetChapters.forEach(ch => {
+        const replaceInHtml = (html: string) => {
             const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = ch.content;
-            const walker = document.createTreeWalker(tempDiv, NodeFilter.SHOW_TEXT, null);
-            let changed = false;
-            const textNodes: Text[] = [];
-            let node: Node | null = null;
-            while(node = walker.nextNode()) {
-                textNodes.push(node as Text);
-            }
+            tempDiv.innerHTML = html;
             
-            textNodes.forEach(textNode => {
-                if (textNode.textContent && regex.test(textNode.textContent)) {
-                    const matches = textNode.textContent.match(regex);
-                    if (matches) totalReplaced += matches.length;
-                    textNode.textContent = textNode.textContent.replace(regex, replace);
-                    changed = true;
+            const walkAndReplace = (node: Node) => {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    node.textContent = (node.textContent || '').replace(regex, replace);
+                } else {
+                    node.childNodes.forEach(walkAndReplace);
                 }
-            });
+            };
+            
+            walkAndReplace(tempDiv);
+            return tempDiv.innerHTML;
+        };
 
-            if (changed) {
-                dispatch({ type: 'UPDATE_CHAPTER', payload: { id: ch.id, updates: { content: tempDiv.innerHTML } } });
-            }
-        });
-        
-        dialog.alert(`Replace complete. Found and replaced ${totalReplaced} occurrences.`, "Find & Replace");
+        if (scope === 'chapter') {
+             const newContent = replaceInHtml(activeChapter.content);
+             handleChapterDetailsChange(activeChapter.id, { content: newContent });
+        } else {
+             chapters.forEach(ch => {
+                 const newContent = replaceInHtml(ch.content);
+                 if (newContent !== ch.content) {
+                     dispatch({ type: 'UPDATE_CHAPTER', payload: { id: ch.id, updates: { content: newContent } } });
+                 }
+             });
+             dialog.alert("Global replace complete across manuscript.", "Find & Replace");
+        }
     };
 
     useEffect(() => {
@@ -745,11 +757,15 @@ export const Manuscript: React.FC<ManuscriptProps> = ({
     useEffect(() => {
         const handleGlobalKeyDown = (e: KeyboardEvent) => {
             // Only handle if no modal is open and not typing in another input
-            const isModalOpen = !!activeModal || isFindReplaceOpen;
+            const isModalOpen = !!activeModal;
             const isInputFocused = ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName || '');
             const isEditorFocused = document.activeElement === editorRef.current;
             
-            if (isModalOpen || isInputFocused) return;
+            // Allow PageDown/PageUp globally unless in a textarea where they might be used for scrolling the textarea itself
+            const isPaginationKey = e.key === 'PageDown' || e.key === 'PageUp';
+            const isInsideTextarea = document.activeElement?.tagName === 'TEXTAREA';
+
+            if (isModalOpen || (isInputFocused && !isPaginationKey) || (isPaginationKey && isInsideTextarea)) return;
 
             if (e.key === 'PageDown') {
                 e.preventDefault();
@@ -788,6 +804,12 @@ export const Manuscript: React.FC<ManuscriptProps> = ({
         return () => window.removeEventListener('keydown', handleGlobalKeyDown);
     }, [activeModal, isFindReplaceOpen, layout, snapToSpread]);
 
+    // Reset typing state when modals are opened or closed to prevent scroll locking
+    useEffect(() => {
+        isTyping.current = false;
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    }, [activeModal, isFindReplaceOpen]);
+
     const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
         if (editorContainerRef.current && layout.stride > 0) {
             isTyping.current = true; stableScrollLeft.current = Math.round(editorContainerRef.current.scrollLeft / layout.stride) * layout.stride;
@@ -795,6 +817,7 @@ export const Manuscript: React.FC<ManuscriptProps> = ({
         }
         if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
             e.preventDefault();
+            isTyping.current = false; // Ensure typing state is reset
             setIsFindReplaceOpen(true);
             return;
         }
@@ -1012,7 +1035,7 @@ export const Manuscript: React.FC<ManuscriptProps> = ({
             const accent = settings.ttsAccent === 'en-GB' ? 'British' : 'American';
             // Fix: Correctly type response as GenerateContentResponse and use Modality.AUDIO from SDK
             const response: GenerateContentResponse = await getAI(settings.geminiApiKey).models.generateContent({
-                model: "gemini-1.5-flash",
+                model: "gemini-3.8-flash-tts",
                 contents: [{ role: 'user', parts: [{ text: `Please read the following text with a ${accent} accent and appropriate emotion:\n\n${textToRead}` }] }],
                 config: { responseModalities: [Modality.AUDIO], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: settings.narratorVoice || 'Kore' } } } },
             });
@@ -1039,6 +1062,17 @@ export const Manuscript: React.FC<ManuscriptProps> = ({
         if (ttsAudioElementRef.current) { ttsAudioElementRef.current.pause(); ttsAudioElementRef.current.src = ""; ttsAudioElementRef.current = null; }
         setTtsStatus('idle');
     }, []);
+
+    const handleToggleReadAloud = useCallback(() => {
+        if (activeModal === 'readAloud' || ttsStatus !== 'idle') {
+            handleTTSStop();
+            if (activeModal === 'readAloud') {
+                setActiveModal(null);
+            }
+        } else {
+            setActiveModal('readAloud');
+        }
+    }, [activeModal, ttsStatus, handleTTSStop]);
 
     const prevChapterId = useRef(activeChapterId);
     useLayoutEffect(() => {
@@ -1166,7 +1200,8 @@ export const Manuscript: React.FC<ManuscriptProps> = ({
                         onToggleSpellcheck={() => setIsSpellcheckEnabled(p => !p)} 
                         onToggleTransitionStyle={() => onSettingsChange({ transitionStyle: settings.transitionStyle === 'scroll' ? 'fade' : 'scroll' })} 
                         hasDirectory={!!directoryHandle || !!projectPath} 
-                        onToggleReadAloud={() => setActiveModal('readAloud')} 
+                        onToggleReadAloud={handleToggleReadAloud} 
+                        isReadAloudOpen={activeModal === 'readAloud'}
                         ttsStatus={ttsStatus} 
                         onExportNove={handleExportNove} 
                         onExportStandaloneNove={handleExportStandaloneNove} 

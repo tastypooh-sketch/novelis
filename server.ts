@@ -23,34 +23,39 @@ async function startServer() {
   });
 
   // Shared Gemini Client
-  const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || "";
-  const genAI = new GoogleGenAI({ apiKey });
+  const serverApiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || "";
 
   app.post("/api/gemini/generate", async (req, res) => {
     try {
       const headerKey = req.headers["x-gemini-api-key"] as string;
       const validHeaderKey = (headerKey && headerKey !== "undefined" && headerKey.length > 5) ? headerKey : null;
-      const requestApiKey = validHeaderKey || apiKey;
+      const requestApiKey = validHeaderKey || serverApiKey;
 
       if (!requestApiKey) {
         return res.status(401).json({ error: "API key missing" });
       }
 
-      const activeGenAI = validHeaderKey ? new GoogleGenAI({ apiKey: validHeaderKey }) : genAI;
+      const activeGenAI = new GoogleGenAI({ apiKey: requestApiKey });
       const { model: modelName, contents, config } = req.body;
       
-      const modelMap: Record<string, string> = {
-        'gemini-2.0-flash': 'gemini-1.5-flash',
-        'gemini-1.5-flash': 'gemini-1.5-flash',
-        'gemini-1.5-pro': 'gemini-1.5-pro'
-      };
-      const mappedModel = modelMap[modelName] || 'gemini-1.5-flash';
-      // @ts-ignore
-      const response = await activeGenAI.getGenerativeModel({ model: mappedModel }).generateContent(contents);
-      const result = await response.response;
+      let mappedModel = 'gemini-3.8-flash';
+      if (config?.responseModalities?.includes('AUDIO') || config?.speechConfig) {
+        mappedModel = 'gemini-3.8-flash-tts';
+      } else if (modelName === 'gemini-1.5-pro' || (typeof modelName === 'string' && modelName.includes('pro'))) {
+        mappedModel = 'gemini-3.1-pro-preview';
+      } else {
+        mappedModel = 'gemini-3.8-flash';
+      }
+
+      const response = await activeGenAI.models.generateContent({
+        model: mappedModel,
+        contents,
+        config,
+      });
 
       res.json({ 
-        text: result.text() || "", 
+        text: response.text || "", 
+        candidates: response.candidates,
       });
     } catch (error: any) {
       console.error("Gemini API Error:", error);

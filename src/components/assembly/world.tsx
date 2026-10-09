@@ -420,16 +420,55 @@ export const WorldPanel: React.FC<{ settings: EditorSettings }> = ({ settings })
         <div className="h-full flex flex-col" style={{ backgroundColor: `${settings.toolbarButtonBg}60`}}>
             {renderContextMenu()}
             {renderTaggingModal()}
-            <div className="flex-shrink-0 p-3 border-b flex items-center justify-center" style={{ backgroundColor: settings.toolbarBg, borderColor: settings.toolbarInputBorderColor }}>
-                <div className="flex items-center gap-1 p-0.5 rounded-md" style={{backgroundColor: settings.toolbarButtonBg}}>
-                    <button onClick={() => setView('crucible')} className="px-4 py-1.5 rounded-md text-sm" style={{backgroundColor: worldPanelView === 'crucible' ? settings.accentColor : 'transparent', color: worldPanelView === 'crucible' ? getContrastColor(settings.accentColor || '#000000') : settings.toolbarText }}>Crucible</button>
-                    <button onClick={() => setView('repository')} className="px-4 py-1.5 rounded-md text-sm" style={{backgroundColor: worldPanelView === 'repository' ? settings.accentColor : 'transparent', color: worldPanelView === 'repository' ? getContrastColor(settings.accentColor || '#000000') : settings.toolbarText }}>Repository</button>
-                    <button onClick={() => setView('map')} className="px-4 py-1.5 rounded-md text-sm flex items-center gap-2" style={{backgroundColor: worldPanelView === 'map' ? settings.accentColor : 'transparent', color: worldPanelView === 'map' ? getContrastColor(settings.accentColor || '#000000') : settings.toolbarText }}>
-                        <MapIcon /> Map Builder
-                    </button>
-                    <button onClick={() => setView('chest')} className="px-4 py-1.5 rounded-md text-sm flex items-center gap-2" style={{backgroundColor: worldPanelView === 'chest' ? settings.accentColor : 'transparent', color: worldPanelView === 'chest' ? getContrastColor(settings.accentColor || '#000000') : settings.toolbarText }}>
-                        <ArchiveIcon className="w-4 h-4" /> Locked Chest
-                    </button>
+            <div className="flex-shrink-0 p-3 border-b flex flex-col md:flex-row justify-between items-start md:items-center z-40 shadow-sm gap-4 transition-all" style={{ backgroundColor: settings.toolbarBg, borderColor: settings.toolbarInputBorderColor }}>
+                <div className="flex items-center gap-3 flex-wrap mx-auto md:mx-0">
+                    {/* View Mode Segmented Pills */}
+                    <div className="flex bg-black/20 p-1 rounded-xl border border-white/5">
+                        <button 
+                            onClick={() => setView('repository')}
+                            className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${worldPanelView === 'repository' ? 'shadow-lg' : 'opacity-40 hover:opacity-100'}`}
+                            style={{ 
+                                backgroundColor: worldPanelView === 'repository' ? settings.toolbarButtonBg : 'transparent',
+                                color: settings.toolbarText
+                            }}
+                        >
+                            <WorldIcon className="w-3.5 h-3.5" />
+                            Repository
+                        </button>
+                        <button 
+                            onClick={() => setView('crucible')}
+                            className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${worldPanelView === 'crucible' ? 'shadow-lg' : 'opacity-40 hover:opacity-100'}`}
+                            style={{ 
+                                backgroundColor: worldPanelView === 'crucible' ? settings.toolbarButtonBg : 'transparent',
+                                color: settings.toolbarText
+                            }}
+                        >
+                            <SparklesIconOutline className="w-3.5 h-3.5" />
+                            Crucible
+                        </button>
+                        <button 
+                            onClick={() => setView('map')}
+                            className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${worldPanelView === 'map' ? 'shadow-lg' : 'opacity-40 hover:opacity-100'}`}
+                            style={{ 
+                                backgroundColor: worldPanelView === 'map' ? settings.toolbarButtonBg : 'transparent',
+                                color: settings.toolbarText
+                            }}
+                        >
+                            <MapIcon className="w-3.5 h-3.5" />
+                            Map
+                        </button>
+                        <button 
+                            onClick={() => setView('chest')}
+                            className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${worldPanelView === 'chest' ? 'shadow-lg' : 'opacity-40 hover:opacity-100'}`}
+                            style={{ 
+                                backgroundColor: worldPanelView === 'chest' ? settings.toolbarButtonBg : 'transparent',
+                                color: settings.toolbarText
+                            }}
+                        >
+                            <ArchiveIcon className="w-3.5 h-3.5" />
+                            Chest
+                        </button>
+                    </div>
                 </div>
             </div>
 

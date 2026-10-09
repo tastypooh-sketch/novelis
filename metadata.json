@@ -1,6 +1,6 @@
 {
-  "name": "10.07 Novelis",
-  "description": "A 'Novel Operating System' featuring a horizontal 'infinite spread' editor. Fixed Nove.html standalone export crashes and updated UI text for blank exports.",
+  "name": "10.15 Novelis (Push to Github)",
+  "description": "A \u0027Novel Operating System\u0027 featuring a horizontal \u0027infinite spread\u0027 editor. Fixed Nove.html standalone export crashes and updated UI text for blank exports.",
   "requestFramePermissions": [
     "camera",
     "microphone"

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
 import { Manuscript } from './Manuscript';
-import { Assembly } from './Assembly';
+import { Assembly, AssemblyAIProvider } from './Assembly';
 import type { EditorSettings, ToolbarVisibility, ICharacter, IChapter, Shortcut, WritingGoals, AssemblyPanel, GalleryItem, ActiveAITask } from './types';
 import { useNovelState, useNovelDispatch } from './NovelContext';
 import { generateId, extractJson } from './utils/common';
@@ -31,6 +31,12 @@ interface RecoveryState {
     content: string;
     timestamp: number;
 }
+
+const hasMeaningfulText = (content?: string | null): boolean => {
+    if (!content) return false;
+    const plain = content.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').trim();
+    return plain.length > 0;
+};
 
 const DEFAULT_GALLERY_ITEMS_URLS = [
     { url: 'https://static.vecteezy.com/system/resources/previews/036/215/115/non_2x/ai-generated-abstract-black-leaf-on-dark-background-elegant-design-generated-by-ai-free-photo.jpg', category: 'Backgrounds' as const },
@@ -340,6 +346,10 @@ const App: React.FC = () => {
     
     // Dirty State Tracking
     const [isDirty, setIsDirty] = useState(false);
+    const isDirtyRef = useRef(false);
+    useEffect(() => {
+        isDirtyRef.current = isDirty;
+    }, [isDirty]);
     const isFirstStateChange = useRef(true);
 
     // --- EULA LOGIC ---
@@ -382,7 +392,6 @@ const App: React.FC = () => {
     
     // Local App State
     const [activeChapterId, setActiveChapterId] = useState<string>('');
-    const [notification, setNotification] = useState<string | null>(null);
     
     // Set activeChapterId to last chapter whenever chapters are loaded or added
     const isFirstLoad = useRef(true);
@@ -402,6 +411,7 @@ const App: React.FC = () => {
 
     const [recoveryState, setRecoveryState] = useState<RecoveryState | null>(null);
     const [showRecoveryModal, setShowRecoveryModal] = useState(false);
+    const [notification, setNotification] = useState<string | null>(null);
 
     const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
 
@@ -521,17 +531,21 @@ const App: React.FC = () => {
     // --- STARTUP LOGIC ---
     useEffect(() => {
         const initializeApp = async () => {
-            // Check for recovery state first
+            // Check for recovery state first - only prompt if it has meaningful, non-empty text
             const savedRecovery = localStorage.getItem('novelis_recovery_state');
             if (savedRecovery) {
                 try {
                     const parsed = JSON.parse(savedRecovery);
-                    if (parsed && parsed.content && parsed.activeChapterId) {
+                    if (parsed && parsed.content && parsed.activeChapterId && hasMeaningfulText(parsed.content)) {
                         setRecoveryState(parsed);
                         setShowRecoveryModal(true);
+                    } else {
+                        // Purge empty or stale recovery artifact
+                        localStorage.removeItem('novelis_recovery_state');
                     }
                 } catch (e) {
                     console.error("Failed to parse recovery state", e);
+                    localStorage.removeItem('novelis_recovery_state');
                 }
             }
 
@@ -564,10 +578,26 @@ const App: React.FC = () => {
                                 // Clear sync flag if we successfully loaded
                                 localStorage.removeItem('novelis_sync_flag');
 
-                                // Reset dirty state after load
+                                // If loaded chapter already has this content, dismiss recovery modal
+                                if (savedRecovery) {
+                                    try {
+                                        const recParsed = JSON.parse(savedRecovery);
+                                        const matchingChapter = parsed.state.chapters?.find((c: any) => c.id === recParsed.activeChapterId);
+                                        if (matchingChapter && matchingChapter.content === recParsed.content) {
+                                            setShowRecoveryModal(false);
+                                            setRecoveryState(null);
+                                            localStorage.removeItem('novelis_recovery_state');
+                                        }
+                                    } catch {
+                                        localStorage.removeItem('novelis_recovery_state');
+                                    }
+                                }
+
+                                // Reset dirty state after load and clean recovery cache
                                 setTimeout(() => {
                                     isFirstStateChange.current = false;
                                     setIsDirty(false);
+                                    localStorage.removeItem('novelis_recovery_state');
                                 }, 200);
                                 return;
                             }
@@ -581,8 +611,11 @@ const App: React.FC = () => {
         initializeApp();
     }, []);
 
-    // Sync Dirty Status to Electron
+    // Sync Dirty Status to Electron & manage recovery state
     useEffect(() => {
+        if (!isDirty) {
+            localStorage.removeItem('novelis_recovery_state');
+        }
         // @ts-ignore
         if (window.electronAPI && window.electronAPI.updateDirtyStatus) {
             // @ts-ignore
@@ -598,7 +631,12 @@ const App: React.FC = () => {
 
     // --- REAL-TIME CRASH RECOVERY CACHING ---
     const cacheRecoveryState = useDebouncedCallback((chapterId: string, content: string) => {
-        if (!chapterId || !content) return;
+        if (!chapterId || !content || !isDirtyRef.current || !hasMeaningfulText(content)) {
+            if (!isDirtyRef.current) {
+                localStorage.removeItem('novelis_recovery_state');
+            }
+            return;
+        }
         
         const state: RecoveryState = {
             activeChapterId: chapterId,
@@ -609,20 +647,20 @@ const App: React.FC = () => {
     }, 5000);
 
     useEffect(() => {
-        if (isFirstStateChange.current || mode !== 'manuscript' || !activeChapterId) return;
+        if (isFirstStateChange.current || mode !== 'manuscript' || !activeChapterId || !isDirty) return;
         
         const activeChapter = chapters.find(c => c.id === activeChapterId);
-        if (activeChapter) {
+        if (activeChapter && hasMeaningfulText(activeChapter.content)) {
             cacheRecoveryState(activeChapterId, activeChapter.content);
         }
-    }, [chapters, activeChapterId, mode, cacheRecoveryState]);
+    }, [chapters, activeChapterId, mode, isDirty, cacheRecoveryState]);
 
-    // Cache on blur
+    // Cache on blur only if dirty with meaningful content
     useEffect(() => {
         const handleBlur = () => {
-            if (mode === 'manuscript' && activeChapterId) {
+            if (mode === 'manuscript' && activeChapterId && isDirtyRef.current) {
                 const activeChapter = chapters.find(c => c.id === activeChapterId);
-                if (activeChapter) {
+                if (activeChapter && hasMeaningfulText(activeChapter.content)) {
                     const state: RecoveryState = {
                         activeChapterId,
                         content: activeChapter.content,
@@ -702,7 +740,7 @@ ${textToAnalyze}
 Return your response as a JSON array of objects, where each object has "word" (the typo) and "correction" (the fixed version). Only include high-confidence corrections. If no clear errors are found, return an empty array [].`;
 
             const response = await getAI(settings.geminiApiKey).models.generateContent({
-                model: 'gemini-1.5-flash',
+                model: 'gemini-3.8-flash',
                 contents: [{ role: 'user', parts: [{ text: prompt }] }],
                 config: {
                     responseMimeType: "application/json",
@@ -1019,8 +1057,12 @@ Return your response as a JSON array of objects, where each object has "word" (t
         // @ts-ignore
         if (!window.electronAPI) {
             const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-                e.preventDefault();
-                e.returnValue = ''; 
+                if (isDirtyRef.current) {
+                    e.preventDefault();
+                    e.returnValue = ''; 
+                } else {
+                    localStorage.removeItem('novelis_recovery_state');
+                }
             };
             window.addEventListener('beforeunload', handleBeforeUnload);
             return () => window.removeEventListener('beforeunload', handleBeforeUnload);
@@ -1188,7 +1230,7 @@ ${text}
 Return your response as a JSON array of strings, where each string is a single paragraph describing one alternative scenario.`;
 
             const response = await getAI(settings.geminiApiKey).models.generateContent({
-                model: 'gemini-1.5-flash',
+                model: 'gemini-3.8-flash',
                 contents: [{ role: 'user', parts: [{ text: prompt }] }],
                 config: {
                     responseMimeType: "application/json",
@@ -1232,7 +1274,7 @@ ${text}
 Return your response as a JSON array of 2 strings, where each string is one full rewritten variation.`;
 
             const response = await getAI(settings.geminiApiKey).models.generateContent({
-                model: 'gemini-1.5-flash',
+                model: 'gemini-3.8-flash',
                 contents: [{ role: 'user', parts: [{ text: prompt }] }],
                 config: {
                     responseMimeType: "application/json",
@@ -1278,6 +1320,7 @@ Return your response as a JSON array of 2 strings, where each string is one full
     return (
         <ErrorBoundary state={novelState}>
             <DialogProvider settings={settings}>
+                <AssemblyAIProvider settings={settings}>
                 <div 
                     className="h-screen w-screen relative overflow-hidden" 
                     style={{
@@ -1457,8 +1500,15 @@ Return your response as a JSON array of 2 strings, where each string is one full
                         onCopyToClipboard={handleCopyRecoveryToClipboard}
                         onDiscard={handleDiscardRecovery}
                     />
+
+                    {notification && (
+                        <div className="fixed bottom-12 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg bg-black/80 text-white text-xs font-bold shadow-2xl z-[300] border border-white/10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            {notification}
+                        </div>
+                    )}
                 </div>
             </div>
+            </AssemblyAIProvider>
         </DialogProvider>
         </ErrorBoundary>
     );

@@ -256,7 +256,7 @@ export const ImportNovelModal: React.FC<ImportNovelModalProps> = ({ settings, on
                 Text: ${ch.content.substring(0, 15000)}... (truncated)`;
 
                 const response = await getAI(settings.geminiApiKey).models.generateContent({
-                    model: 'gemini-3.5-flash',
+                    model: 'gemini-3.8-flash',
                     contents: [{ role: 'user', parts: [{ text: prompt }] }],
                     config: { responseMimeType: 'application/json' }
                 });
@@ -309,7 +309,7 @@ export const ImportNovelModal: React.FC<ImportNovelModalProps> = ({ settings, on
             }`;
 
             const aggResponse = await getAI(settings.geminiApiKey).models.generateContent({
-                model: 'gemini-3.5-flash',
+                model: 'gemini-3.8-flash',
                 contents: [{ role: 'user', parts: [{ text: aggregationPrompt }] }],
                 config: { responseMimeType: 'application/json' }
             });

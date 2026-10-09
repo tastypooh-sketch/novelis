@@ -1,13 +1,14 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Type } from "@google/genai";
 import { Modal } from './Modal';
 import { useDialog } from '../../common/DialogProvider';
 import type { EditorSettings, IChapter } from '../../../types';
-import { SpinnerIcon, CheckCircleIcon, TrashIconOutline, ChevronLeftIcon, ChevronRightIcon } from '../../common/Icons';
+import { SpinnerIcon, CheckCircleIcon, TrashIconOutline, ChevronLeftIcon, ChevronRightIcon, ProofreadIcon } from '../../common/Icons';
 import { extractJson } from '../../../utils/common';
 import { getAI, hasAPIKey, API_KEY_ERROR } from '../../../utils/ai';
 import { AIError } from '../../common/AIError';
+import { calculateWordCountFromHtml } from '../../../utils/manuscriptUtils';
 
 interface SpellCheckModalProps {
     settings: EditorSettings;
@@ -27,83 +28,92 @@ interface SpellCheckItem {
 
 export const SpellCheckModal: React.FC<SpellCheckModalProps> = ({ settings, chapter, onClose, onUpdateContent }) => {
     const dialog = useDialog();
+    const [hasStarted, setHasStarted] = useState(false);
     const [items, setItems] = useState<SpellCheckItem[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [processedCount, setProcessedCount] = useState(0);
 
-    useEffect(() => {
-        const analyzeText = async () => {
-            if (!hasAPIKey(settings.geminiApiKey)) {
-                setError(API_KEY_ERROR);
+    const chapterWordCount = useMemo(() => {
+        if (chapter.wordCount !== undefined) return chapter.wordCount;
+        return calculateWordCountFromHtml(chapter.content);
+    }, [chapter.content, chapter.wordCount]);
+
+    const analyzeText = async () => {
+        if (!hasAPIKey(settings.geminiApiKey)) {
+            setError(API_KEY_ERROR);
+            setIsLoading(false);
+            return;
+        }
+
+        setIsLoading(true);
+        setError(null);
+        setCurrentIndex(0);
+        setProcessedCount(0);
+        try {
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = chapter.content;
+            const textContent = tempDiv.innerText;
+
+            if (!textContent.trim()) {
+                setItems([]);
                 setIsLoading(false);
                 return;
             }
 
-            setIsLoading(true);
-            setError(null);
-            try {
-                const tempDiv = document.createElement('div');
-                tempDiv.innerHTML = chapter.content;
-                const textContent = tempDiv.innerText;
+            const prompt = `You are a professional copyeditor. Analyze the following text for spelling, grammar, and punctuation errors. Ignore stylistic choices unless they are egregious.
+            
+            Return a JSON array of objects:
+            [{
+                "original": "string (exact text found in source)",
+                "suggestion": "string (corrected text)",
+                "explanation": "string (brief reason)",
+                "context": "string (surrounding 5-10 words for identification)"
+            }]
+            
+            If no errors are found, return an empty array.
 
-                if (!textContent.trim()) {
-                    setItems([]);
-                    setIsLoading(false);
-                    return;
-                }
+            Text:
+            """
+            ${textContent}
+            """`;
 
-                const prompt = `You are a professional copyeditor. Analyze the following text for spelling, grammar, and punctuation errors. Ignore stylistic choices unless they are egregious.
-                
-                Return a JSON array of objects:
-                [{
-                    "original": "string (exact text found in source)",
-                    "suggestion": "string (corrected text)",
-                    "explanation": "string (brief reason)",
-                    "context": "string (surrounding 5-10 words for identification)"
-                }]
-                
-                If no errors are found, return an empty array.
-
-                Text:
-                """
-                ${textContent}
-                """`;
-
-                const response = await getAI(settings.geminiApiKey).models.generateContent({
-                    model: 'gemini-3.5-flash',
-                    contents: prompt,
-                    config: {
-                        responseMimeType: 'application/json',
-                        responseSchema: {
-                            type: Type.ARRAY,
-                            items: {
-                                type: Type.OBJECT,
-                                properties: {
-                                    original: { type: Type.STRING },
-                                    suggestion: { type: Type.STRING },
-                                    explanation: { type: Type.STRING },
-                                    context: { type: Type.STRING }
-                                },
-                                required: ['original', 'suggestion', 'explanation', 'context']
-                            }
+            const response = await getAI(settings.geminiApiKey).models.generateContent({
+                model: 'gemini-3.8-flash',
+                contents: prompt,
+                config: {
+                    responseMimeType: 'application/json',
+                    responseSchema: {
+                        type: Type.ARRAY,
+                        items: {
+                            type: Type.OBJECT,
+                            properties: {
+                                original: { type: Type.STRING },
+                                suggestion: { type: Type.STRING },
+                                explanation: { type: Type.STRING },
+                                context: { type: Type.STRING }
+                            },
+                            required: ['original', 'suggestion', 'explanation', 'context']
                         }
                     }
-                });
+                }
+            });
 
-                const result = extractJson<SpellCheckItem[]>(response.text || '') || [];
-                setItems(result);
-            } catch (e) {
-                console.error(e);
-                setError("Failed to analyze text. Please try again.");
-            } finally {
-                setIsLoading(false);
-            }
-        };
+            const result = extractJson<SpellCheckItem[]>(response.text || '') || [];
+            setItems(result);
+        } catch (e) {
+            console.error(e);
+            setError("Failed to analyze text. Please try again.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
+    const handleStartProofreading = () => {
+        setHasStarted(true);
         analyzeText();
-    }, [chapter.id]);
+    };
 
     const applyCorrection = (item: SpellCheckItem) => {
         let newContent = chapter.content;
@@ -173,32 +183,98 @@ export const SpellCheckModal: React.FC<SpellCheckModalProps> = ({ settings, chap
     return (
         <Modal onClose={onClose} settings={settings} title="AI Proofreader" className="max-w-2xl">
             <div className="min-h-[300px] flex flex-col">
-                {isLoading ? (
+                {!hasStarted ? (
+                    <div className="flex-grow flex flex-col items-center justify-center text-center p-6 gap-5">
+                        <div 
+                            className="w-16 h-16 rounded-full flex items-center justify-center shadow-inner"
+                            style={{ backgroundColor: `${settings.accentColor || '#4ade80'}20`, color: settings.accentColor || '#4ade80' }}
+                        >
+                            <ProofreadIcon className="h-8 w-8" />
+                        </div>
+                        
+                        <div className="max-w-md">
+                            <h3 className="text-xl font-bold mb-2">Scan Chapter for Copyediting</h3>
+                            <p className="text-sm opacity-70 leading-relaxed mb-4">
+                                Analyze this chapter with Gemini AI for spelling, punctuation, grammar, and typos. Review every suggestion before applying changes.
+                            </p>
+                            <div 
+                                className="px-4 py-2.5 rounded-lg text-xs font-mono inline-flex items-center gap-3 border"
+                                style={{ backgroundColor: settings.toolbarButtonBg, borderColor: settings.toolbarInputBorderColor }}
+                            >
+                                <span className="font-semibold text-sm">Chapter {chapter.chapterNumber}</span>
+                                <span className="opacity-40">•</span>
+                                <span className="truncate max-w-[180px]">{chapter.title || 'Untitled Chapter'}</span>
+                                <span className="opacity-40">•</span>
+                                <span>{chapterWordCount.toLocaleString()} words</span>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-3 mt-2">
+                            <button
+                                onClick={onClose}
+                                className="px-5 py-2 rounded-lg text-sm font-medium transition-colors opacity-70 hover:opacity-100"
+                                style={{ backgroundColor: settings.toolbarButtonBg, color: settings.toolbarText }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleStartProofreading}
+                                disabled={chapterWordCount === 0}
+                                className="px-6 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-lg transition-transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                                style={{ backgroundColor: settings.accentColor, color: 'var(--app-text)' }}
+                            >
+                                <ProofreadIcon className="h-4 w-4" />
+                                <span>Start Proofreading</span>
+                            </button>
+                        </div>
+                    </div>
+                ) : isLoading ? (
                     <div className="flex-grow flex flex-col items-center justify-center">
                         <SpinnerIcon className="h-8 w-8 mb-4" />
                         <p>Scanning manuscript for errors...</p>
                     </div>
                 ) : error ? (
-                    <div className="flex-grow flex items-center justify-center">
+                    <div className="flex-grow flex flex-col items-center justify-center gap-3">
                         <AIError message={error} onDismiss={() => setError(null)} />
+                        <div className="flex gap-2 mt-2">
+                            <button onClick={analyzeText} className="px-4 py-2 rounded text-xs font-semibold" style={{ backgroundColor: settings.accentColor, color: 'var(--app-text)' }}>Retry Scan</button>
+                            <button onClick={onClose} className="px-4 py-2 rounded text-xs font-medium" style={{ backgroundColor: settings.toolbarButtonBg, color: settings.toolbarText }}>Cancel</button>
+                        </div>
                     </div>
                 ) : items.length === 0 ? (
                     <div className="flex-grow flex flex-col items-center justify-center text-center">
                         <CheckCircleIcon className="h-12 w-12 text-green-500 mb-4" />
                         <h3 className="text-xl font-bold">No Errors Found!</h3>
                         <p className="opacity-70 mt-2">Your manuscript looks clean.</p>
+                        <div className="flex gap-3 mt-4">
+                            <button onClick={analyzeText} className="px-4 py-2 rounded-md text-sm font-medium" style={{ backgroundColor: settings.toolbarButtonBg, color: settings.toolbarText }}>Scan Again</button>
+                            <button onClick={onClose} className="px-4 py-2 rounded-md text-sm font-bold" style={{ backgroundColor: settings.accentColor, color: 'var(--app-text)' }}>Close</button>
+                        </div>
                     </div>
                 ) : isDone ? (
                      <div className="flex-grow flex flex-col items-center justify-center text-center">
                         <CheckCircleIcon className="h-12 w-12 text-blue-500 mb-4" />
                         <h3 className="text-xl font-bold">Proofreading Complete</h3>
                         <p className="opacity-70 mt-2">You have reviewed all suggestions.</p>
-                        <button onClick={onClose} className="mt-4 px-4 py-2 rounded-md font-bold" style={{backgroundColor: settings.accentColor, color: 'var(--app-text)'}}>Close</button>
+                        <div className="flex gap-3 mt-4">
+                            <button onClick={analyzeText} className="px-4 py-2 rounded-md text-sm font-medium" style={{ backgroundColor: settings.toolbarButtonBg, color: settings.toolbarText }}>Scan Again</button>
+                            <button onClick={onClose} className="px-4 py-2 rounded-md text-sm font-bold" style={{ backgroundColor: settings.accentColor, color: 'var(--app-text)' }}>Close</button>
+                        </div>
                     </div>
                 ) : (
                     <div className="flex flex-col h-full">
                         <div className="flex justify-between items-center mb-4">
-                            <span className="text-sm opacity-70">Issue {currentIndex + 1} of {items.length}</span>
+                            <div className="flex items-center gap-3">
+                                <span className="text-sm opacity-70">Issue {currentIndex + 1} of {items.length}</span>
+                                <button 
+                                    onClick={analyzeText}
+                                    title="Re-scan Chapter"
+                                    className="text-xs px-2 py-0.5 rounded opacity-60 hover:opacity-100 transition-opacity"
+                                    style={{ backgroundColor: settings.toolbarButtonBg, color: settings.toolbarText }}
+                                >
+                                    Re-scan
+                                </button>
+                            </div>
                             <div className="flex gap-2">
                                 <button 
                                     onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))}

@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal } from '../manuscript/modals/Modal';
-import type { EditorSettings } from '../../types';
-import { SpinnerIcon, SparklesIconOutline, CameraIcon, ShareIcon, UserCircleIcon, RefreshIcon, TrashIcon } from '../common/Icons';
+import type { EditorSettings, SocialPost } from '../../types';
+import { SpinnerIcon, SparklesIconOutline, CameraIcon, ShareIcon, UserCircleIcon, RefreshIcon, TrashIcon, DocumentDuplicateIcon, CheckCircleIcon } from '../common/Icons';
 import { useNovelState, useNovelDispatch } from '../../NovelContext';
 import { useAssemblyAI } from '../assembly/AssemblyAIContext';
 import AutosizeTextarea from '../common/AutosizeTextarea';
@@ -23,14 +23,23 @@ export const PostVariationsModal: React.FC<PostVariationsModalProps> = ({
     const { 
         excerpts, selectedExcerptId, isLoading, 
         generatedInstagramPost, generatedTiktokPost, generatedImageUrl,
-        generatedImagePrompt
+        generatedImagePrompt, postVariations, variationPlatform
     } = socialMediaState;
     const dispatch = useNovelDispatch();
-    const { onGenerateSocialContent, onRegenerateImage, onRegenerateTextAndHashtags } = useAssemblyAI();
+    const { onGenerateSocialContent, onRegenerateImage, onRegenerateTextAndHashtags, onGeneratePostVariations } = useAssemblyAI();
     
     const [isRegeneratingImage, setIsRegeneratingImage] = useState(false);
 
+    // Auto-select first excerpt if none is selected
+    useEffect(() => {
+        if (!selectedExcerptId && excerpts.length > 0) {
+            dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { selectedExcerptId: excerpts[0].id } });
+        }
+    }, [selectedExcerptId, excerpts, dispatch]);
+
     if (!isOpen) return null;
+
+    const selectedExcerpt = excerpts.find(e => e.id === selectedExcerptId) || (excerpts.length > 0 ? excerpts[0] : null);
 
     const handleExcerptUpdate = (id: string, text: string) => {
         const newExcerpts = excerpts.map(e => e.id === id ? { ...e, text } : e);
@@ -49,23 +58,36 @@ export const PostVariationsModal: React.FC<PostVariationsModalProps> = ({
     };
 
     const handleGenerate = () => {
-        const excerpt = excerpts.find(e => e.id === selectedExcerptId);
-        if (excerpt) {
-            onGenerateSocialContent(excerpt);
+        if (selectedExcerpt) {
+            onGenerateSocialContent(selectedExcerpt);
         }
     };
 
     const handleRegenImage = async (moodOnly: boolean) => {
         if (generatedImagePrompt) {
             setIsRegeneratingImage(true);
-            const selectedExcerpt = excerpts.find(e => e.id === selectedExcerptId);
-            const mainCharacter = selectedExcerpt ? characters.find(c => c.id === selectedExcerpt.characterIds[0]) : undefined;
+            const mainCharacter = selectedExcerpt?.characterIds?.[0] ? characters.find(c => c.id === selectedExcerpt.characterIds[0]) : undefined;
             const newUrl = await onRegenerateImage(generatedImagePrompt, moodOnly, mainCharacter);
             if (newUrl) {
                 dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { generatedImageUrl: newUrl } });
             }
             setIsRegeneratingImage(false);
         }
+    };
+
+    const handleRepurpose = async (platform: 'instagram' | 'tiktok') => {
+        const post = platform === 'instagram' ? generatedInstagramPost : generatedTiktokPost;
+        if (post && selectedExcerpt) {
+            await onGeneratePostVariations(post, selectedExcerpt, platform);
+        }
+    };
+
+    const handleSelectVariation = (variation: SocialPost) => {
+        dispatch({ type: 'APPLY_POST_VARIATION', payload: variation });
+    };
+
+    const handleDismissVariations = () => {
+        dispatch({ type: 'CLEAR_POST_VARIATIONS' });
     };
 
     const handleSelectExcerpt = (id: string) => {
@@ -75,7 +97,6 @@ export const PostVariationsModal: React.FC<PostVariationsModalProps> = ({
         } });
     };
 
-    const selectedExcerpt = excerpts.find(e => e.id === selectedExcerptId);
     const isDark = !isColorLight(settings.backgroundColor);
 
     return (
@@ -87,7 +108,7 @@ export const PostVariationsModal: React.FC<PostVariationsModalProps> = ({
         >
             <div className="flex h-full gap-6 overflow-hidden p-1">
                 {/* LHS: Excerpts */}
-                <div className="w-[350px] flex flex-col gap-4 border-r pr-6" style={{ borderColor: settings.toolbarInputBorderColor }}>
+                <div className="w-[350px] flex flex-col gap-4 border-r pr-6 flex-shrink-0" style={{ borderColor: settings.toolbarInputBorderColor }}>
                     <div className="flex justify-between items-center">
                         <div>
                             <h3 className="font-bold text-lg">Excerpts</h3>
@@ -95,7 +116,7 @@ export const PostVariationsModal: React.FC<PostVariationsModalProps> = ({
                         </div>
                         <button 
                             onClick={handleGenerate}
-                            disabled={!selectedExcerptId || isLoading}
+                            disabled={!selectedExcerpt || isLoading}
                             className="px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 disabled:opacity-50 transition-all active:scale-95 shadow-lg"
                             style={{ backgroundColor: settings.accentColor, color: getContrastColor(settings.accentColor || '#000000') }}
                         >
@@ -108,12 +129,12 @@ export const PostVariationsModal: React.FC<PostVariationsModalProps> = ({
                         {excerpts.length === 0 ? (
                             <div className="text-center opacity-40 mt-20 px-4">
                                 <ShareIcon className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                                <p className="text-sm italic">Your excerpts will appear here after you send them from the manuscript or generate them via AI.</p>
+                                <p className="text-sm italic">Your excerpts will appear here after you send them from the manuscript or generate them via AI in Assembly.</p>
                             </div>
                         ) : (
                             excerpts.map(excerpt => {
                                 const chapter = chapters.find(c => c.id === excerpt.chapterId);
-                                const isSelected = selectedExcerptId === excerpt.id;
+                                const isSelected = selectedExcerpt?.id === excerpt.id;
                                 
                                 return (
                                     <div 
@@ -169,7 +190,7 @@ export const PostVariationsModal: React.FC<PostVariationsModalProps> = ({
 
                 {/* RHS: Preview & Results */}
                 <div className="flex-grow flex flex-col gap-6 overflow-hidden">
-                    {selectedExcerptId ? (
+                    {selectedExcerpt ? (
                          <div className="flex flex-col xl:flex-row gap-6 h-full overflow-hidden">
                             {/* Visual Preview */}
                             <div className="flex flex-col gap-4 flex-[5] min-w-[300px]">
@@ -204,7 +225,7 @@ export const PostVariationsModal: React.FC<PostVariationsModalProps> = ({
                                                 onClick={() => {
                                                     const a = document.createElement('a');
                                                     a.href = generatedImageUrl;
-                                                    a.download = `novelis_social_${selectedExcerptId}.png`;
+                                                    a.download = `novelis_social_${selectedExcerpt?.id || 'poster'}.png`;
                                                     a.click();
                                                 }}
                                                 className="text-[10px] px-3 py-1.5 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md transition-all flex items-center gap-2 border border-white/10 text-white shadow-lg"
@@ -285,9 +306,42 @@ export const PostVariationsModal: React.FC<PostVariationsModalProps> = ({
                                 </div>
                             </div>
 
-                            {/* Column 2: Generated Posts */}
+                            {/* Column 2: Generated Posts & Variations */}
                             <div className="flex flex-col gap-4 flex-[5] min-w-[350px]">
                                 <h4 className="text-xs font-bold uppercase tracking-widest opacity-40">Campaign Copy</h4>
+                                
+                                {/* Repurposed Variations Banner if available */}
+                                {postVariations && postVariations.length > 0 && (
+                                    <div className="p-3 rounded-xl border border-blue-500/30 bg-blue-500/10 flex flex-col gap-2">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs font-bold text-blue-400 flex items-center gap-1.5">
+                                                <DocumentDuplicateIcon className="h-3.5 w-3.5" />
+                                                {variationPlatform ? variationPlatform.toUpperCase() : 'POST'} Variations
+                                            </span>
+                                            <button 
+                                                onClick={handleDismissVariations}
+                                                className="text-[10px] opacity-60 hover:opacity-100 text-blue-300"
+                                            >
+                                                Dismiss
+                                            </button>
+                                        </div>
+                                        <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                                            {postVariations.map((v, idx) => (
+                                                <div key={idx} className="p-2.5 rounded-lg bg-black/40 border border-white/5 text-xs flex flex-col gap-1.5">
+                                                    <p className="text-xs italic opacity-90">{v.text}</p>
+                                                    <p className="text-[10px] text-blue-300 font-mono">{v.hashtags.join(' ')}</p>
+                                                    <button 
+                                                        onClick={() => handleSelectVariation(v)}
+                                                        className="self-end text-[10px] px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-bold flex items-center gap-1 transition-all active:scale-95"
+                                                    >
+                                                        <CheckCircleIcon className="h-3 w-3" /> Apply to Post
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
                                 <div className="flex-grow flex flex-col gap-4 overflow-y-auto pr-2">
                                     {generatedInstagramPost || generatedTiktokPost ? (
                                         <>
@@ -296,20 +350,20 @@ export const PostVariationsModal: React.FC<PostVariationsModalProps> = ({
                                                 post={generatedInstagramPost} 
                                                 isLoading={isLoading} 
                                                 settings={settings}
-                                                onTextChange={(text) => dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { generatedInstagramPost: { ...generatedInstagramPost!, text } } })}
-                                                onHashtagsChange={(hashtags) => dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { generatedInstagramPost: { ...generatedInstagramPost!, hashtags } } })}
-                                                onRegenerate={() => onRegenerateTextAndHashtags(selectedExcerpt!, 'instagram')}
-                                                onRepurpose={() => {}} // Not needed in this view
+                                                onTextChange={(text) => generatedInstagramPost && dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { generatedInstagramPost: { ...generatedInstagramPost, text } } })}
+                                                onHashtagsChange={(hashtags) => generatedInstagramPost && dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { generatedInstagramPost: { ...generatedInstagramPost, hashtags } } })}
+                                                onRegenerate={() => selectedExcerpt && onRegenerateTextAndHashtags(selectedExcerpt, 'instagram')}
+                                                onRepurpose={() => handleRepurpose('instagram')}
                                             />
                                             <PostDisplay 
                                                 platform="TikTok" 
                                                 post={generatedTiktokPost} 
                                                 isLoading={isLoading} 
                                                 settings={settings}
-                                                onTextChange={(text) => dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { generatedTiktokPost: { ...generatedTiktokPost!, text } } })}
-                                                onHashtagsChange={(hashtags) => dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { generatedTiktokPost: { ...generatedTiktokPost!, hashtags } } })}
-                                                onRegenerate={() => onRegenerateTextAndHashtags(selectedExcerpt!, 'tiktok')}
-                                                onRepurpose={() => {}} // Not needed in this view
+                                                onTextChange={(text) => generatedTiktokPost && dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { generatedTiktokPost: { ...generatedTiktokPost, text } } })}
+                                                onHashtagsChange={(hashtags) => generatedTiktokPost && dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { generatedTiktokPost: { ...generatedTiktokPost, hashtags } } })}
+                                                onRegenerate={() => selectedExcerpt && onRegenerateTextAndHashtags(selectedExcerpt, 'tiktok')}
+                                                onRepurpose={() => handleRepurpose('tiktok')}
                                             />
                                         </>
                                     ) : !isLoading ? (

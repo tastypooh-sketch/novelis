@@ -59,7 +59,49 @@ export const AssemblyAIContext = createContext<AssemblyAIContextType | undefined
 export const useAssemblyAI = () => {
     const context = useContext(AssemblyAIContext);
     if (!context) {
-        throw new Error('useAssemblyAI must be used within an AssemblyAIProvider');
+        console.warn('useAssemblyAI was accessed outside AssemblyAIProvider; using fallback state.');
+        return {
+            isGeneratingProfile: null,
+            isGeneratingChapter: null,
+            isGeneratingWorldItem: null,
+            isDistillingWorld: false,
+            isGeneratingSnippets: false,
+            isGeneratingMap: false,
+            errorId: null,
+            errorMessage: null,
+            onGenerateProfile: async () => {},
+            onUpdateProfile: async () => {},
+            onGenerateChapterDetails: async () => {},
+            onUpdateChapterFromManuscript: async () => null,
+            onAnalyzeSnippets: async () => false,
+            onSuggestPlacement: async () => [],
+            onGenerateFullAnalysis: async () => {},
+            onRegeneratePacingAndStructure: async () => {},
+            onRegenerateCharacters: async () => {},
+            onRegenerateOpportunities: async () => {},
+            onGenerateRelationshipAnalysis: async () => {},
+            onGenerateChekhovsGuns: async () => {},
+            onGenerateThematicAnalysis: async () => {},
+            onGenerateArcTest: async () => {},
+            onGenerateFullSynopsis: async () => {},
+            onRegenerateMarketAnalysis: async () => {},
+            onRegeneratePromotionalContent: async () => {},
+            onRegenerateSynopsis: async () => {},
+            onGenerateSocialContent: async () => {},
+            onRegenerateImage: async () => null,
+            onRegenerateTextAndHashtags: async () => {},
+            onExtractExcerpts: async () => {},
+            onGeneratePostVariations: async () => {},
+            onRefineWorldItem: async () => {},
+            onDistillWorldNotes: async () => {},
+            onConsolidateWorldItem: async () => {},
+            onInitiateNarrativeArchitect: async () => {},
+            onExpandNarrativeArchitect: async () => {},
+            onApplyNarrativeArchitect: () => {},
+            onSetError: () => {},
+            onGeneratePacingAnalysis: async () => {},
+            onSuggestLocations: async () => {},
+        } as AssemblyAIContextType;
     }
     return context;
 };

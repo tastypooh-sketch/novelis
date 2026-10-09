@@ -3,10 +3,9 @@ import React, { useCallback, useContext, useEffect, useState, useRef } from 'rea
 import type { EditorSettings, IChapter, ICharacter, Excerpt, SocialPost } from '../../types';
 import { useNovelState, useNovelDispatch } from '../../NovelContext';
 import { useAssemblyAI } from './AssemblyAIContext';
-import { SpinnerIcon, SparklesIconOutline, RefreshIcon, ShareIcon, CameraIcon, UserCircleIcon, ArchiveIcon, TrashIconOutline } from '../common/Icons';
+import { SpinnerIcon, SparklesIconOutline, RefreshIcon, ShareIcon, CameraIcon, UserCircleIcon, ArchiveIcon, TrashIconOutline, DocumentDuplicateIcon, CheckCircleIcon } from '../common/Icons';
 import AutosizeTextarea from '../common/AutosizeTextarea';
 import { PostDisplay } from '../social/PostDisplay';
-import { PostVariationsModal } from '../social/PostVariationsModal';
 import { useDebouncedCallback } from 'use-debounce';
 import { AIError } from '../common/AIError';
 import { isColorLight, shadeColor, harmonizeColor, getContrastColor } from '../../utils/colorUtils';
@@ -292,13 +291,11 @@ export const SocialMediaPanel: React.FC<{ settings: EditorSettings }> = ({ setti
         const excerpt = excerpts.find(e => e.id === selectedExcerptId);
         if (post && excerpt) {
             await onGeneratePostVariations(post, excerpt, platform);
-            dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { isOpen: true } });
         }
-    }, [generatedInstagramPost, generatedTiktokPost, excerpts, selectedExcerptId, onGeneratePostVariations, dispatch]);
+    }, [generatedInstagramPost, generatedTiktokPost, excerpts, selectedExcerptId, onGeneratePostVariations]);
 
     const handleSelectVariation = (post: SocialPost) => {
         dispatch({ type: 'APPLY_POST_VARIATION', payload: post });
-        dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { isOpen: false } });
     };
 
     const handleExcerptUpdate = (id: string, text: string) => {
@@ -331,12 +328,6 @@ export const SocialMediaPanel: React.FC<{ settings: EditorSettings }> = ({ setti
                     Social Media Studio
                 </h3>
                 <div className="flex items-center gap-4">
-                    <button 
-                        onClick={() => dispatch({ type: 'UPDATE_SOCIAL_MEDIA_STATE', payload: { isOpen: true } })}
-                        className="btn-nuanced px-4 py-1.5 text-sm flex items-center gap-2"
-                    >
-                        <SparklesIconOutline className="h-4 w-4" /> Open Full Studio
-                    </button>
                     <div className="flex bg-black/20 p-1 rounded-lg">
                         <button 
                             onClick={() => setActiveTab('content')}
@@ -521,6 +512,36 @@ export const SocialMediaPanel: React.FC<{ settings: EditorSettings }> = ({ setti
                             
                             {/* Column 3: Posts */}
                             <div className="flex flex-col gap-4 min-h-0 md:flex-[5]">
+                                {postVariations && postVariations.length > 0 && (
+                                    <div className="p-3 rounded-xl border border-blue-500/30 bg-blue-500/10 flex flex-col gap-2 flex-shrink-0">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs font-bold text-blue-400 flex items-center gap-1.5">
+                                                <DocumentDuplicateIcon className="h-3.5 w-3.5" />
+                                                {variationPlatform ? variationPlatform.toUpperCase() : 'POST'} Variations
+                                            </span>
+                                            <button 
+                                                onClick={() => dispatch({ type: 'CLEAR_POST_VARIATIONS' })}
+                                                className="text-[10px] opacity-60 hover:opacity-100 text-blue-300"
+                                            >
+                                                Dismiss
+                                            </button>
+                                        </div>
+                                        <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                                            {postVariations.map((v, idx) => (
+                                                <div key={idx} className="p-2.5 rounded-lg bg-black/40 border border-white/5 text-xs flex flex-col gap-1.5">
+                                                    <p className="text-xs italic opacity-90">{v.text}</p>
+                                                    <p className="text-[10px] text-blue-300 font-mono">{v.hashtags.join(' ')}</p>
+                                                    <button 
+                                                        onClick={() => handleSelectVariation(v)}
+                                                        className="self-end text-[10px] px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-bold flex items-center gap-1 transition-all active:scale-95"
+                                                    >
+                                                        <CheckCircleIcon className="h-3 w-3" /> Apply to Post
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                                 <div className="flex-grow flex flex-col min-h-0">
                                     <PostDisplay platform="Instagram" post={generatedInstagramPost} onTextChange={handleInstaTextChange} onHashtagsChange={handleInstaHashtagsChange} onRegenerate={() => handleRegenText('instagram')} onRepurpose={() => handleRepurpose('instagram')} isLoading={isLoading} settings={settings} />
                                 </div>

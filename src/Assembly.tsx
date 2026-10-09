@@ -15,7 +15,7 @@ import { SynopsisPanel } from './components/assembly/synopsis';
 import { WorldPanel } from './components/assembly/world';
 import { ScrapbookPanel } from './components/assembly/modals/ScrapbookModal';
 import { ChroniclePanel } from './components/assembly/ChroniclePanel';
-import { PlusIcon, DocumentTextIcon, TileBackgroundIcon, ImportIcon, SparklesIconOutline, ScrapbookIcon } from './components/common/Icons';
+import { PlusIcon, DocumentTextIcon, TileBackgroundIcon, ImportIcon, SparklesIconOutline, ScrapbookIcon, ChevronDownIcon } from './components/common/Icons';
 import { generateId, extractJson } from './utils/common';
 import { generateInitialChapterRtf, generateManuscriptRtf, downloadFile } from './utils/manuscriptUtils';
 import { getContrastColor } from './utils/colorUtils';
@@ -118,6 +118,20 @@ interface AssemblyHeaderProps {
 }
 
 const AssemblyHeader: React.FC<AssemblyHeaderProps> = ({ settings, activePanel, onPanelChange, onAdd, onSettingsChange, onExport, onExportManuscriptRtf, onImport, onOpenConcept }) => {
+    const [isDesignOpen, setIsDesignOpen] = useState(false);
+    const [isProjectOpen, setIsProjectOpen] = useState(false);
+    const designRef = useRef<HTMLDivElement>(null);
+    const projectRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (designRef.current && !designRef.current.contains(e.target as Node)) setIsDesignOpen(false);
+            if (projectRef.current && !projectRef.current.contains(e.target as Node)) setIsProjectOpen(false);
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
     const handleCycleBackground = () => {
         const styles: TileBackgroundStyle[] = ['solid', 'diagonal', 'horizontal'];
         const currentStyle = settings.assemblyTileStyle || 'solid';
@@ -201,78 +215,91 @@ const AssemblyHeader: React.FC<AssemblyHeaderProps> = ({ settings, activePanel, 
                     {sansSerifFonts.map(font => <option key={font} value={font} style={{fontFamily: font}}>{font}</option>)}
                  </select>
                  
-                 <div className="flex items-center gap-1">
+                 <div className="flex items-center gap-2">
                     {showTileControls && (
-                        <>
+                        <div className="relative" ref={designRef}>
                             <button
-                                onClick={handleCycleBackground}
-                                className="p-1.5 rounded-md flex-shrink-0"
-                                style={{ backgroundColor: settings.toolbarButtonBg }}
-                                onMouseEnter={e => e.currentTarget.style.backgroundColor = settings.toolbarButtonHoverBg || ''}
-                                onMouseLeave={e => e.currentTarget.style.backgroundColor = settings.toolbarButtonBg || ''}
-                                title="Cycle tile background style"
+                                onClick={() => setIsDesignOpen(!isDesignOpen)}
+                                className="p-1.5 rounded-md flex-shrink-0 transition-all flex items-center gap-2 px-3 text-xs font-bold uppercase tracking-wider"
+                                style={{ backgroundColor: settings.toolbarButtonBg, color: settings.toolbarText }}
                             >
-                                <TileBackgroundIcon style={{ color: settings.toolbarText }} />
+                                <TileBackgroundIcon className="h-4 w-4" />
+                                Design
+                                <ChevronDownIcon className={`h-3 w-3 transition-transform ${isDesignOpen ? 'rotate-180' : ''}`} />
                             </button>
-                            <button
-                                onClick={handleToggleColorSource}
-                                className="p-1.5 rounded-md flex-shrink-0 transition-all"
-                                style={{ 
-                                    backgroundColor: settings.tileColorSource === 'image' ? settings.accentColor : settings.toolbarButtonBg,
-                                    boxShadow: settings.tileColorSource === 'image' ? `0 0 10px ${settings.accentColor}40` : 'none'
-                                }}
-                                onMouseEnter={e => {
-                                    if (settings.tileColorSource !== 'image') e.currentTarget.style.backgroundColor = settings.toolbarButtonHoverBg || '';
-                                }}
-                                onMouseLeave={e => {
-                                    if (settings.tileColorSource !== 'image') e.currentTarget.style.backgroundColor = settings.toolbarButtonBg || '';
-                                }}
-                                title={settings.tileColorSource === 'image' ? "Using Image/Headshot Colors" : "Using Global Palette Colors"}
-                            >
-                                <SparklesIconOutline style={{ color: settings.tileColorSource === 'image' ? '#FFFFFF' : settings.toolbarText }} className="h-5 w-5" />
-                            </button>
-                             <button
-                                onClick={onOpenConcept}
-                                className="p-1.5 rounded-md flex-shrink-0 transition-all border border-dashed border-white/10"
-                                style={{ backgroundColor: settings.toolbarButtonBg }}
-                                onMouseEnter={e => e.currentTarget.style.backgroundColor = settings.toolbarButtonHoverBg || ''}
-                                onMouseLeave={e => e.currentTarget.style.backgroundColor = settings.toolbarButtonBg || ''}
-                                title="View Story Concept & Summary"
-                            >
-                                <ConceptIcon style={{ color: settings.toolbarText }} className="h-5 w-5" />
-                            </button>
-                        </>
+                            
+                            {isDesignOpen && (
+                                <div className="absolute top-full right-0 mt-2 w-64 rounded-xl shadow-2xl border border-white/10 z-[120] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200" style={{ backgroundColor: settings.dropdownBg || settings.toolbarBg }}>
+                                    <button 
+                                        onClick={() => { handleCycleBackground(); setIsDesignOpen(false); }}
+                                        className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors"
+                                        style={{ color: settings.toolbarText }}
+                                    >
+                                        <TileBackgroundIcon className="h-4 w-4 opacity-70" />
+                                        Cycle Tile Style
+                                    </button>
+                                    <button 
+                                        onClick={() => { handleToggleColorSource(); setIsDesignOpen(false); }}
+                                        className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors"
+                                        style={{ color: settings.toolbarText }}
+                                    >
+                                        <SparklesIconOutline className="h-4 w-4 opacity-70" style={{ color: settings.tileColorSource === 'image' ? settings.accentColor : undefined }} />
+                                        {settings.tileColorSource === 'image' ? "Use Palette Colors" : "Use Image Colors"}
+                                    </button>
+                                    <div className="h-px bg-white/10 mx-2"></div>
+                                    <button 
+                                        onClick={() => { onOpenConcept(); setIsDesignOpen(false); }}
+                                        className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors"
+                                        style={{ color: settings.toolbarText }}
+                                    >
+                                        <ConceptIcon className="h-4 w-4 opacity-70" />
+                                        Story Concept
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     )}
+
+                    <div className="relative" ref={projectRef}>
+                        <button
+                            onClick={() => setIsProjectOpen(!isProjectOpen)}
+                            className="p-1.5 rounded-md flex-shrink-0 transition-all flex items-center gap-2 px-3 text-xs font-bold uppercase tracking-wider"
+                            style={{ backgroundColor: settings.toolbarButtonBg, color: settings.toolbarText }}
+                        >
+                            <ImportIcon className="h-4 w-4" />
+                            Project
+                            <ChevronDownIcon className={`h-3 w-3 transition-transform ${isProjectOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                        
+                        {isProjectOpen && (
+                            <div className="absolute top-full right-0 mt-2 w-64 rounded-xl shadow-2xl border border-white/10 z-[120] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200" style={{ backgroundColor: settings.dropdownBg || settings.toolbarBg }}>
+                                <button 
+                                    onClick={() => { onExportManuscriptRtf(); setIsProjectOpen(false); }}
+                                    className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors"
+                                    style={{ color: settings.toolbarText }}
+                                >
+                                    <DocumentTextIcon className="h-4 w-4 opacity-70" />
+                                    Export Manuscript RTF
+                                </button>
+                                {activePanel === 'chapters' && (
+                                    <button 
+                                        onClick={() => { onImport(); setIsProjectOpen(false); }}
+                                        className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors"
+                                        style={{ color: settings.toolbarText }}
+                                    >
+                                        <ImportIcon className="h-4 w-4 opacity-70" />
+                                        Import Manuscript
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                    </div>
                  </div>
 
-                 <div className="w-px h-6 bg-gray-600 opacity-30 mx-1 hidden sm:block"></div>
-                 <button
-                    onClick={onExportManuscriptRtf}
-                    className="px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 whitespace-nowrap flex-shrink-0"
-                    style={{ backgroundColor: settings.toolbarButtonBg, color: settings.toolbarText }}
-                    onMouseEnter={e => e.currentTarget.style.backgroundColor = settings.toolbarButtonHoverBg || ''}
-                    onMouseLeave={e => e.currentTarget.style.backgroundColor = settings.toolbarButtonBg || ''}
-                    title="Export the entire manuscript as a single RTF file"
-                 >
-                    <DocumentTextIcon className="h-4 w-4" />
-                    Manuscript RTF Export
-                 </button>
-                 {activePanel === 'chapters' && (
-                    <button
-                        onClick={onImport}
-                        className="px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 whitespace-nowrap flex-shrink-0"
-                        style={{ backgroundColor: settings.toolbarButtonBg, color: settings.toolbarText }}
-                        onMouseEnter={e => e.currentTarget.style.backgroundColor = settings.toolbarButtonHoverBg || ''}
-                        onMouseLeave={e => e.currentTarget.style.backgroundColor = settings.toolbarButtonBg || ''}
-                    >
-                        <ImportIcon className="h-4 w-4" />
-                        Import Manuscript
-                    </button>
-                 )}
                  {canAdd && (
                     <button
                         onClick={onAdd}
-                        className="px-4 py-1.5 rounded-md text-sm font-bold flex items-center gap-2 whitespace-nowrap flex-shrink-0"
+                        className="px-4 py-1.5 rounded-md text-xs font-black uppercase tracking-wider flex items-center gap-2 whitespace-nowrap flex-shrink-0 shadow-lg transition-all active:scale-95"
                         style={{ backgroundColor: settings.accentColor, color: getContrastColor(settings.accentColor) }}
                         onMouseEnter={e => e.currentTarget.style.backgroundColor = settings.accentColorHover || ''}
                         onMouseLeave={e => e.currentTarget.style.backgroundColor = settings.accentColor || ''}
@@ -312,7 +339,7 @@ const characterProfileSchema = {
 const chapterDetailsSchema = {
     type: Type.OBJECT,
     properties: {
-        tagline: { type: Type.STRING, description: "A one-sentence evocative tagline for the chapter." },
+        tagline: { type: Type.STRING, description: "A one-sentence hook or tagline for the chapter." },
         summary: { type: Type.STRING, description: "A 1-2 sentence summary of the chapter's plot." },
         outline: { type: Type.STRING, description: "A markdown beat-by-beat outline of the chapter." },
         analysis: { type: Type.STRING, description: "A markdown analysis of conflict, stakes, and emotional resonance." },
@@ -437,7 +464,7 @@ const synopsisSuiteSchema = {
     required: ["marketAnalysis", "promotionalContent", "synopsis"]
 };
 
-const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: EditorSettings }> = ({ children, settings }) => {
+export const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: EditorSettings }> = ({ children, settings }) => {
     const { chapters, characters, snippets, worldItems, socialMediaState, assemblyState, plotBrainstormState, synopsisState, scrapbookState } = useNovelState();
     const dispatch = useNovelDispatch();
     const [aiState, setAiState] = useState<AssemblyAIState>({
@@ -470,7 +497,7 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
             const prompt = `Based on these notes, generate a detailed character profile for "${character.name}". 
             Notes: ${rawNotes}`;
             const response = await getAI(settings.geminiApiKey).models.generateContent({ 
-                model: 'gemini-1.5-flash', 
+                model: 'gemini-3.8-flash', 
                 contents: [{ role: 'user', parts: [{ text: prompt }] }], 
                 config: { 
                     responseMimeType: 'application/json',
@@ -517,7 +544,7 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
             const prompt = `Analyze the provided manuscript segments to update the profile for character "${character.name}". Focus on consistency and evolution.
             Manuscript Segment: ${manuscriptContent.substring(0, 30000)}`;
             const response = await getAI(settings.geminiApiKey).models.generateContent({ 
-                model: 'gemini-1.5-flash', 
+                model: 'gemini-3.8-flash', 
                 contents: [{ role: 'user', parts: [{ text: prompt }] }], 
                 config: { 
                     responseMimeType: 'application/json',
@@ -548,9 +575,9 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
                                  currentTitle.toLowerCase() === 'chapter' || 
                                  currentTitle.toLowerCase().match(/^chapter\s+\d+$/);
             
-            const prompt = `Generate structural details for Chapter ${chapter.chapterNumber}: "${chapter.title}" based on these rough notes. 
-            Include a compelling one-sentence tagline that captures the essence of the chapter.
+            const prompt = `Generate structural details for Chapter ${chapter.chapterNumber}: "${chapter.title}" based on these rough notes.
             ${isInitialTitle ? "IMPORTANT: Since the current title is generic or just a placeholder, also generate a creative and evocative specific title for this chapter based on the content. The user wants to replace 'Chapter' with something descriptive." : ""}
+            Ensure a compelling one-sentence tagline is included in the "tagline" field.
             Notes: ${rawNotes}`;
 
             const responseSchema = {
@@ -562,7 +589,7 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
             };
 
             const response = await getAI(settings.geminiApiKey).models.generateContent({ 
-                model: 'gemini-1.5-flash', 
+                model: 'gemini-3.8-flash', 
                 contents: [{ role: 'user', parts: [{ text: prompt }] }], 
                 config: { 
                     responseMimeType: 'application/json',
@@ -573,7 +600,7 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
             if (data) {
                 const updates: Partial<IChapter> = { 
                     ...data, 
-                    previousDetails: chapter.summary || chapter.tagline ? { tagline: chapter.tagline, summary: chapter.summary, outline: chapter.outline, analysis: chapter.analysis, keywords: chapter.keywords } : undefined 
+                    previousDetails: chapter.summary ? { summary: chapter.summary, outline: chapter.outline, analysis: chapter.analysis, keywords: chapter.keywords } : undefined 
                 };
                 
                 if (isInitialTitle && data.title) {
@@ -600,11 +627,12 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
         setAiState(prev => ({ ...prev, isGeneratingChapter: chapter.id, errorMessage: null }));
         try {
             const tempDiv = document.createElement('div'); tempDiv.innerHTML = chapter.content;
-            const prompt = `Analyze the actual text of this chapter to update the tagline (one sentence), summary, outline, and analysis based on what was actually written.
+            const prompt = `Analyze the actual text of this chapter to update the summary, outline, tagline, and analysis based on what was actually written.
+            Include a one-sentence tagline that captures the essence of the chapter in the "tagline" field.
             Also extract structural metadata for the story architecture spreadsheet (story event, quadrant, inciting incident, progressive complication, crisis, climax, resolution, value levels, trope scene type, polarity, turning point, POV, time/duration, and location).
             Text: ${tempDiv.innerText.substring(0, 15000)}`;
             const response = await getAI(settings.geminiApiKey).models.generateContent({ 
-                model: 'gemini-1.5-flash', 
+                model: 'gemini-3.8-flash', 
                 contents: [{ role: 'user', parts: [{ text: prompt }] }], 
                 config: { 
                     responseMimeType: 'application/json',
@@ -613,7 +641,7 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
             });
             const data = JSON.parse(response.text || '{}');
             if (data) {
-                const updates = { ...data, previousDetails: { tagline: chapter.tagline, summary: chapter.summary, outline: chapter.outline, analysis: chapter.analysis, keywords: chapter.keywords } };
+                const updates = { ...data, previousDetails: { summary: chapter.summary, outline: chapter.outline, analysis: chapter.analysis, keywords: chapter.keywords } };
                 dispatch({ type: 'UPDATE_CHAPTER', payload: { id: chapter.id, updates } });
                 dispatch({ type: 'UPDATE_AI_TASK', payload: { id: taskId, updates: { status: 'completed', label: `Chapter updated from manuscript: ${chapter.chapterNumber}` } } });
                 return updates;
@@ -640,7 +668,7 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
             Character Directory: ${characters.map(c => `[ID: ${c.id}] Name: ${c.name}`).join(', ')}
             Input Text: ${rawText}`;
             const response = await getAI(settings.geminiApiKey).models.generateContent({ 
-                model: 'gemini-1.5-flash', 
+                model: 'gemini-3.8-flash', 
                 contents: [{ role: 'user', parts: [{ text: prompt }] }], 
                 config: { 
                     responseMimeType: 'application/json',
@@ -672,7 +700,7 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
             Chapter Map (including character presence):
             ${chapters.map(c => `[ID: ${c.id}] Ch ${c.chapterNumber}: ${c.summary} (Characters: ${getCharacterNames(c.characterIds)})`).join('\n')}`;
             const response = await getAI(settings.geminiApiKey).models.generateContent({ 
-                model: 'gemini-1.5-flash', 
+                model: 'gemini-3.8-flash', 
                 contents: [{ role: 'user', parts: [{ text: prompt }] }], 
                 config: { 
                     responseMimeType: 'application/json',
@@ -699,7 +727,7 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
             const prompt = `Conduct a comprehensive plot and character analysis for the following novel summary:
             ${chapText}`;
             const response = await getAI(settings.geminiApiKey).models.generateContent({ 
-                model: 'gemini-1.5-flash', 
+                model: 'gemini-3.8-flash', 
                 contents: [{ role: 'user', parts: [{ text: prompt }] }], 
                 config: { 
                     responseMimeType: 'application/json',
@@ -764,7 +792,7 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
             Ensure the image prompt is vivid and cinematic.`;
 
             const response = await getAI(settings.geminiApiKey).models.generateContent({ 
-                model: 'gemini-1.5-flash', 
+                model: 'gemini-3.8-flash', 
                 contents: [{ role: 'user', parts: [{ text: prompt }] }], 
                 config: { 
                     responseMimeType: 'application/json',
@@ -824,7 +852,7 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
             All hashtags MUST start with the '#' symbol.`;
             
             const response = await getAI(settings.geminiApiKey).models.generateContent({ 
-                model: 'gemini-1.5-flash', 
+                model: 'gemini-3.8-flash', 
                 contents: [{ role: 'user', parts: [{ text: prompt }] }], 
                 config: { 
                     responseMimeType: 'application/json',
@@ -868,7 +896,7 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
             Character Directory: ${allCharacters.map(c => `[ID: ${c.id}] Name: ${c.name}`).join(', ')}`;
             
             const response = await getAI(settings.geminiApiKey).models.generateContent({ 
-                model: 'gemini-1.5-flash', 
+                model: 'gemini-3.8-flash', 
                 contents: [{ role: 'user', parts: [{ text: prompt }] }], 
                 config: { 
                     responseMimeType: 'application/json',
@@ -914,7 +942,7 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
             All hashtags MUST start with the '#' symbol.`;
             
             const response = await getAI(settings.geminiApiKey).models.generateContent({ 
-                model: 'gemini-1.5-flash', 
+                model: 'gemini-3.8-flash', 
                 contents: [{ role: 'user', parts: [{ text: prompt }] }], 
                 config: { 
                     responseMimeType: 'application/json',
@@ -953,7 +981,7 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
             const prompt = `Refine this world-building entry: "${item.name}" (${item.type}).
             Rough Notes: ${item.rawNotes}`;
             const response = await getAI(settings.geminiApiKey).models.generateContent({ 
-                model: 'gemini-1.5-flash', 
+                model: 'gemini-3.8-flash', 
                 contents: [{ role: 'user', parts: [{ text: prompt }] }], 
                 config: { 
                     responseMimeType: 'application/json',
@@ -982,7 +1010,7 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
             const prompt = `Distill the following world-building notes into structured entries. Identify name, type, and summarize key facts.
             Input Notes: ${text}`;
             const response = await getAI(settings.geminiApiKey).models.generateContent({ 
-                model: 'gemini-1.5-flash', 
+                model: 'gemini-3.8-flash', 
                 contents: [{ role: 'user', parts: [{ text: prompt }] }], 
                 config: { 
                     responseMimeType: 'application/json',
@@ -1014,7 +1042,7 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
             ${chapText}`;
             
             const response = await getAI(settings.geminiApiKey).models.generateContent({ 
-                model: 'gemini-1.5-flash', 
+                model: 'gemini-3.8-flash', 
                 contents: [{ role: 'user', parts: [{ text: prompt }] }], 
                 config: { 
                     responseMimeType: 'application/json',
@@ -1045,7 +1073,7 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
             Chapter Summaries:
             ${chapText}`;
             const response = await getAI(settings.geminiApiKey).models.generateContent({ 
-                model: 'gemini-1.5-flash', 
+                model: 'gemini-3.8-flash', 
                 contents: [{ role: 'user', parts: [{ text: prompt }] }] 
             });
             if (response.text) dispatch({ type: 'SET_SYNOPSIS_STATE', payload: { marketAnalysis: response.text } });
@@ -1071,7 +1099,7 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
             Chapter Summaries:
             ${chapText}`;
             const response = await getAI(settings.geminiApiKey).models.generateContent({ 
-                model: 'gemini-1.5-flash', 
+                model: 'gemini-3.8-flash', 
                 contents: [{ role: 'user', parts: [{ text: prompt }] }] 
             });
             if (response.text) dispatch({ type: 'SET_SYNOPSIS_STATE', payload: { promotionalContent: response.text } });
@@ -1097,7 +1125,7 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
             Chapter Summaries:
             ${chapText}`;
             const response = await getAI(settings.geminiApiKey).models.generateContent({ 
-                model: 'gemini-1.5-flash', 
+                model: 'gemini-3.8-flash', 
                 contents: [{ role: 'user', parts: [{ text: prompt }] }] 
             });
             if (response.text) dispatch({ type: 'SET_SYNOPSIS_STATE', payload: { synopsis: response.text } });
@@ -1147,7 +1175,7 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
             Response must be JSON.`;
 
             const response = await getAI(settings.geminiApiKey).models.generateContent({ 
-                model: 'gemini-1.5-flash', 
+                model: 'gemini-3.8-flash', 
                 contents: [{ role: 'user', parts: [{ text: prompt }] }], 
                 config: { 
                     responseMimeType: 'application/json',
@@ -1219,7 +1247,7 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
             Adjust the chapters to reflect the feedback while maintaining the 3-act structure and overall integrity.`;
 
             const response = await getAI(settings.geminiApiKey).models.generateContent({ 
-                model: 'gemini-1.5-flash', 
+                model: 'gemini-3.8-flash', 
                 contents: [{ role: 'user', parts: [{ text: prompt }] }], 
                 config: { 
                     responseMimeType: 'application/json',
@@ -1332,7 +1360,7 @@ const AssemblyAIProvider: React.FC<{ children: React.ReactNode, settings: Editor
                      return `[ID: ${c.id}] Ch ${c.chapterNumber}: ${c.title}\nOutline: ${c.outline || c.summary}\nManuscript Text (Preview): ${textSnippet}\n(Characters: ${getCharacterNames(c.characterIds)})`;
                  }).join('\n\n')}`;
                  const res = await getAI(settings.geminiApiKey).models.generateContent({ 
-                     model: 'gemini-1.5-flash', 
+                     model: 'gemini-3.8-flash', 
                      contents: [{ role: 'user', parts: [{ text: prompt }] }], 
                      config: { 
                          responseMimeType: 'application/json',
@@ -1401,8 +1429,9 @@ export const Assembly: React.FC<AssemblyProps> = ({ settings, onSettingsChange, 
         downloadFile(filename, rtf, 'application/rtf');
     }, [chapters, settings.bookTitle]);
 
-    return (
-        <AssemblyAIProvider settings={settings}>
+    const existingContext = useContext(AssemblyAIContext);
+
+    const mainContent = (
             <div className="h-full flex flex-col overflow-hidden" style={{ fontFamily: settings.assemblyFontFamily }}>
             {!assemblyState.isFocusMode && (
                 <AssemblyHeader 
@@ -1482,6 +1511,15 @@ export const Assembly: React.FC<AssemblyProps> = ({ settings, onSettingsChange, 
                     />
                 )}
             </div>
+    );
+
+    if (existingContext) {
+        return mainContent;
+    }
+
+    return (
+        <AssemblyAIProvider settings={settings}>
+            {mainContent}
         </AssemblyAIProvider>
     );
 };
