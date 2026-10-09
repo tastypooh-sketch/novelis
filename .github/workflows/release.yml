@@ -22,21 +22,64 @@ permissions:
   contents: write
 
 jobs:
-  release-desktop:
-    runs-on: ${{ matrix.os }}
-
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
-
+  build-mac:
+    name: Build & Release macOS
+    runs-on: macos-latest
     if: >-
       github.event_name == 'push' ||
       inputs.target == 'all' ||
-      (inputs.target == 'mac_and_windows' && (matrix.os == 'macos-latest' || matrix.os == 'windows-latest')) ||
-      (inputs.target == 'mac_only' && matrix.os == 'macos-latest') ||
-      (inputs.target == 'windows_only' && matrix.os == 'windows-latest')
+      inputs.target == 'mac_and_windows' ||
+      inputs.target == 'mac_only'
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
 
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build & Release (macOS Universal)
+        run: npm run electron:build:mac -- --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-windows:
+    name: Build & Release Windows
+    runs-on: windows-latest
+    if: >-
+      github.event_name == 'push' ||
+      inputs.target == 'all' ||
+      inputs.target == 'mac_and_windows' ||
+      inputs.target == 'windows_only'
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build & Release (Windows Setup)
+        run: npm run electron:build:win -- --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-linux:
+    name: Build & Release Linux
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'push' ||
+      inputs.target == 'all'
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v4
@@ -51,25 +94,11 @@ jobs:
         run: npm install
 
       - name: Install Linux build tools
-        if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
           sudo apt-get install -y libarchive-tools libicns-dev graphicsmagick xz-utils rpm
 
-      - name: Build & Release (macOS Universal)
-        if: matrix.os == 'macos-latest'
-        run: npm run electron:build:mac -- --publish always
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build & Release (Windows Setup)
-        if: matrix.os == 'windows-latest'
-        run: npm run electron:build:win -- --publish always
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Build & Release (Linux Chromebook/Debian)
-        if: matrix.os == 'ubuntu-latest'
         run: npm run electron:build:linux -- --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
