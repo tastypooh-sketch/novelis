@@ -10,7 +10,7 @@ on:
       target:
         description: 'Target platform(s) to build'
         required: true
-        default: 'mac_and_windows'
+        default: 'all'
         type: choice
         options:
           - 'mac_and_windows'
