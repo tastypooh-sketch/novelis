@@ -41,6 +41,7 @@ function createWindow() {
   const preloadPath = path.join(__dirname, 'preload.js');
 
   mainWindow = new BrowserWindow({
+    title: 'Novelis',
     width: 1200,
     height: 800,
     frame: false, // Frameless for custom title bar
@@ -52,6 +53,10 @@ function createWindow() {
       spellcheck: true
     },
     backgroundColor: '#111827'
+  });
+
+  mainWindow.on('page-title-updated', (event) => {
+    event.preventDefault();
   });
 
   // Start maximized
