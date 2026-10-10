@@ -1,5 +1,5 @@
 {
-  "name": "10.16 Novelis (remove version number)",
+  "name": "10.16 Novelis (Version and icons)",
   "description": "A \u0027Novel Operating System\u0027 featuring a horizontal \u0027infinite spread\u0027 editor. Fixed Nove.html standalone export crashes and updated UI text for blank exports.",
   "requestFramePermissions": [
     "camera",
